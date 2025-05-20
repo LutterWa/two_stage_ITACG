@@ -11,20 +11,20 @@ def progress_bar(i):
     sys.stdout.flush()
 
 
-def csv2mat(load_path):  # 回归器数据预处理，loadpath用二级目录，读取二级目录中的所有文件夹下的文件，整合后置于二级文件夹中。
+def data2mat(load_path):  # 回归器数据预处理，loadpath用二级目录，读取二级目录中的所有文件夹下的文件，整合后置于二级文件夹中。
     if load_path[-1] != '/':
         load_path += '/'
 
     files = os.listdir(load_path)  # 读取路径下的全部文件
     mat_files = []
-    for f in files:  # 提取所有的csv
+    for f in files:  # 提取所有的data
         if f.endswith(".mat"):
             mat_files.append(f)
 
     if not os.path.isdir("mats"):  # 创建目标文件夹
         os.mkdir("mats")
 
-    # 解析csv文件
+    # 解析data文件
     l, h = 0, 100 / len(mat_files)
     for f in mat_files:
         l += h
@@ -61,5 +61,43 @@ def csv2mat(load_path):  # 回归器数据预处理，loadpath用二级目录，
              "y": y_cat[np.newaxis].T})
 
 
+def anal_d(load_path):
+    if load_path[-1] != '/':
+        load_path += '/'
+
+    files = os.listdir(load_path)  # 读取路径下的全部文件
+    mat_files = []
+    for f in files:  # 提取所有的data
+        if f.endswith(".mat"):
+            mat_files.append(f)
+
+    if not os.path.isdir("mats"):  # 创建目标文件夹
+        os.mkdir("mats")
+
+    # 解析data文件
+    ds = {}
+    l, h = 0, 100 / len(mat_files)
+    for f in mat_files:
+        l += h
+        progress_bar(l)
+
+        d = int(f[f.find("_d") + 2:f.find(".mat")])
+
+        record = loadmat(load_path + f)["restate"]
+        tf = record.shape[0] * 0.02
+        try:
+            ds[f[f.find("_x") + 1:f.find("_d")].replace("-", "_")].append(np.array([d, tf]))
+        except KeyError:
+            ds[f[f.find("_x") + 1:f.find("_d")].replace("-", "_")] = [np.array([d, tf])]
+
+    for k in ds.keys():
+        ds[k].sort(key=lambda x: x[0])
+
+    savemat('mats/anal_d.mat', ds)
+
+
 if __name__ == "__main__":
-    csv2mat("data")
+    # data2mat("data")
+    anal_d("data")
+    ds = loadmat('mats/anal_d.mat')
+    print(len(ds.keys()))

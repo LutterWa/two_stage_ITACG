@@ -1,33 +1,22 @@
-% Ê∏ÖÈô§ÁéØÂ¢ÉÂèòÈáè
+% «Â≥˝ª∑æ≥±‰¡ø
 clear
 clc
 
-% Â∏∏Èáè
+% ≥£¡ø
 RAD = 180/pi;
 S = 0.057;
 g=9.80665;
-atm = load('atm2.txt');
-Ma2 = [[0.4, 49.056, 0.2604, 29.072];
-    [0.6, 49.468, 0.2635, 29.242];
-    [0.8, 50.801, 0.2682, 30.351];
-    [0.9, 51.372, 0.2776, 31.735];
-    [1.0, 51.878, 0.2804, 33.014];
-    [1.1, 52.468, 0.2797, 32.801];
-    [1.2, 51.531, 0.2784, 32.656];
-    [1.3, 51.224, 0.2771, 32.593];
-    [1.4, 50.732, 0.2768, 32.442];
-    [1.5, 50.321, 0.2707, 32.218]];
 
-% ÂèÇÊï∞ËåÉÂõ¥
-velocity_values = 400:100:600;  % ÈÄüÂ∫¶
-gamma_values = (-30:30:30) / RAD;  % ÂºπÈÅìÂÄæËßí
-psi_values = (-30:30:30) / RAD;  % ÂºπÈÅìÂÅèËßí
-x_values = -10000:-5000:-15000;  % Â∞ÑÁ®ã
-y_values = 5000:5000:10000;  % È´òÂ∫¶
-z_values = -2000:2000:2000;  % ‰æßÂêë
-qgt_values = (-80:20:-40) / RAD;  % ‰øØ‰ª∞ÊñπÂêëÊúüÊúõËêΩËßí
-qpt_values = (-20:20:20) / RAD;  % ÂÅèËà™ÊñπÂêëÊúüÊúõËêΩËßí
-d_values = 600:900:6000; % ‰∫§Áè≠ÁÇπÂà∞ËêΩÁÇπË∑ùÁ¶ª
+% ≤Œ ˝∑∂Œß
+x_values = -10000:-5000:-15000;  % …‰≥Ã
+y_values = 5000:5000:10000;  % ∏ﬂ∂»
+z_values = -2000:2000:2000;  % ≤‡œÚ
+velocity_values = 400:100:600;  % ÀŸ∂»
+gamma_values = (-30:30:30) / RAD;  % µØµ¿«„Ω«
+psi_values = (-30:30:30) / RAD;  % µØµ¿∆´Ω«
+qgt_values = (-80:20:-40) / RAD;  % ∏©—ˆ∑ΩœÚ∆⁄Õ˚¬‰Ω«
+qpt_values = (-20:20:20) / RAD;  % ∆´∫Ω∑ΩœÚ∆⁄Õ˚¬‰Ω«
+d_values = 600:900:6000; % Ωª∞‡µ„µΩ¬‰µ„æ‡¿Î
 
 disp(length(velocity_values)* ...
     length(gamma_values)* ...
@@ -37,9 +26,9 @@ disp(length(velocity_values)* ...
     length(z_values)* ...
     length(qgt_values)* ...
     length(qpt_values)* ...
-    length(d_values));  % ÈááÊ†∑ÂºπÈÅìÊù°Êï∞
+    length(d_values));  % ≤…—˘µØµ¿Ãı ˝
 
-% ÈÅçÂéÜÊâÄÊúâÁªÑÂêà
+% ±È¿˙À˘”–◊È∫œ
 for v0 = velocity_values
     for gamma0 = gamma_values
         for psi0 = psi_values
@@ -48,27 +37,27 @@ for v0 = velocity_values
                     for z0 = z_values
                         for qgt = qgt_values
                             for qpt = qpt_values
-                                % ÈÅçÂéÜ d ÂÄº
+                                % ±È¿˙ d ÷µ
                                 parfor i = 1:length(d_values)
                                     d = d_values(i) * -80 / round(qgt * RAD);
                                     xtd = -d * cos(qgt)*cos(qpt);
                                     ytd = -d * sin(qgt);
                                     ztd = d * cos(qgt)*sin(qpt);
 
-                                    % ÂàùÂßãÂåñÁä∂ÊÄÅ
+                                    % ≥ı ºªØ◊¥Ã¨
                                     restate = [];
 
-                                    state = [0, x0, y0, z0, v0, gamma0, psi0, 0, 0, 84.6]; % ‰ΩøÁî®ÂΩìÂâçÂàùÂßãÊù°‰ª∂
+                                    state = [0, x0, y0, z0, v0, gamma0, psi0, 0, 0, 84.6]; %  π”√µ±«∞≥ı ºÃıº˛
                                     s=num2cell(state);
                                     [t, x, y, z, v, gamma, psi, alpha, beta, m] = deal(s{:});
 
-                                    % ÂàùÂßãËÆ°ÁÆó
+                                    % ≥ı ºº∆À„
                                     r = [xtd, ytd, ztd] - [x, y, z];
 
                                     R = norm(r);
                                     q = [atan2( r(2), norm([r(1), r(3)]) );
                                         -atan2( r(3), r(1) )];
-                                    eta = [gamma; psi] - q;  % ÂØºÂºπÈÄüÂ∫¶ÂâçÁΩÆËßí
+                                    eta = [gamma; psi] - q;  % µºµØÀŸ∂»«∞÷√Ω«
                                     Rdot = -v * cos( eta(1) ) * cos( eta(2) );
                                     qdot = [-v * sin( eta(1) );
                                         v * cos( eta(1) ) * sin( eta(2) ) / cos( q(1) )] / R;
@@ -78,11 +67,11 @@ for v0 = velocity_values
                                             break;
                                         end
 
-                                        % Áä∂ÊÄÅÂèòÈáèÊõ¥Êñ∞
+                                        % ◊¥Ã¨±‰¡ø∏¸–¬
                                         s=num2cell(state);
                                         [t, x, y, z, v, gamma, psi, ~, ~, m] = deal(s{:});
 
-                                        % Ëµ∑ÁÇπÂà∞‰∫§Áè≠ÁÇπ
+                                        % ∆µ„µΩΩª∞‡µ„
                                         if abs(x) > abs(xtd)
                                             xt = xtd;
                                             yt = ytd;
@@ -92,7 +81,7 @@ for v0 = velocity_values
                                             R = norm(r);
                                             q = [atan2( r(2), norm([r(1), r(3)]) );
                                                 -atan2( r(3), r(1) )];
-                                            eta = [gamma; psi] - q;  % ÂØºÂºπÈÄüÂ∫¶ÂâçÁΩÆËßí
+                                            eta = [gamma; psi] - q;  % µºµØÀŸ∂»«∞÷√Ω«
                                             Rdot = -v * cos( eta(1) ) * cos( eta(2) );
                                             qdot = [-v * sin( eta(1) );
                                                 v * cos( eta(1) ) * sin( eta(2) ) / cos( q(1) )] / R;
@@ -102,7 +91,7 @@ for v0 = velocity_values
                                             acp = 4 * v * cos(gamma) * qdot(2) + 2 * v * cos(gamma) * (qpt - q(2)) / tgo;
 
                                             restate = [restate; [state, 1]];
-                                        else  % ‰∫§Áè≠ÁÇπÂà∞ËêΩÁÇπ
+                                        else  % Ωª∞‡µ„µΩ¬‰µ„
                                             xt = 0;
                                             yt = 0;
                                             zt = 0;
@@ -111,7 +100,7 @@ for v0 = velocity_values
                                             R = norm(r);
                                             q = [atan2( r(2), norm([r(1), r(3)]) );
                                                 -atan2( r(3), r(1) )];
-                                            eta = [gamma; psi] - q;  % ÂØºÂºπÈÄüÂ∫¶ÂâçÁΩÆËßí
+                                            eta = [gamma; psi] - q;  % µºµØÀŸ∂»«∞÷√Ω«
                                             Rdot = -v * cos( eta(1) ) * cos( eta(2) );
                                             qdot = [-v * sin( eta(1) );
                                                 v * cos( eta(1) ) * sin( eta(2) ) / cos( q(1) )] / R;
@@ -122,13 +111,11 @@ for v0 = velocity_values
                                             restate = [restate; [state, 0]];
                                         end
 
-                                        % Âä®ÂäõÂ≠¶ÊñπÁ®ã
-                                        rho=interp1(atm(:,1), atm(:,2), min(max(y,0),80000));%Â§ßÊ∞îÂØÜÂ∫¶
-                                        sonic=interp1(atm(:,1), atm(:,3), min(max(y,0),80000));%Èü≥ÈÄü
-                                        ma = v / sonic;%È©¨Ëµ´Êï∞
-                                        Q=0.5 * rho * v ^ 2;  % Âä®Âéã
+                                        % ∂Ø¡¶—ß∑Ω≥Ã
+                                        rho = 1.225
+                                        Q=0.5 * rho * v ^ 2;  % ∂Ø—π
 
-                                        clalpha = interp1(Ma2(:,1), Ma2(:,2), max(min(ma, 1.5),0.4));
+                                        clalpha = 49.056;
                                         alpha = (m * acg) / (Q * S * clalpha);
                                         beta = (m * acp) / (Q * S * clalpha);
 
@@ -146,9 +133,9 @@ for v0 = velocity_values
                                         state(8) = alpha;
                                         state(9) = beta;
 
-                                        state = rk4(state, atm, Ma2);
+                                        state = rk4(state);
                                     end
-                                    % ‰øùÂ≠òÁªìÊûúÂà∞Êñá‰ª∂
+                                    % ±£¥ÊΩ·π˚µΩŒƒº˛
                                     if R < 20
                                         parsave(x0, y0, z0, v0, gamma0, psi0, qgt, qpt, d, restate);
                                     end
