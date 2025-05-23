@@ -1,6 +1,6 @@
 # 三维两阶段时间角度计算制导律
 
-- [atm2.txt](./atm2.txt): 三列数据依次为高度h、大气密度$\rho$、声速
+本工程实现了基于速度不可控模型的混合tgo预测方法和基于牛顿法的ITACG算法
 
 - [GetF.m](./GetF.m): 计算在特定大气和气动系数下，飞行器受到的升力、侧向力和阻力
 
@@ -15,3 +15,5 @@
 - [preprocess.py](./preprocess.py): 两阶段样本预处理
 
 - [dnn.py](./dnn.py): 两阶段交班点速度和到达时间预测器
+
+- [vehicle.m](./vehicle.py)：变速模型的tgo预测和ITACG

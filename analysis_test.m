@@ -2,13 +2,10 @@ clear
 clc
 close all
 
-load("mats/anal_d.mat")
-
-
 load("mats/test_dnn.mat")
 
-y(:,2) = y(:,2) * 10;
-y_(:,2) = y_(:,2) * 10;
+y(:,2) = y(:,2) * 5;
+y_(:,2) = y_(:,2) * 5;
 
 outputs = {'tgo', 'velocity'};
 for i=1:length(outputs)

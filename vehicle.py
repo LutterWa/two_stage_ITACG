@@ -1,13 +1,8 @@
-import keras
 import numpy as np
 import matplotlib.pyplot as plt
 from math import sin, cos, tan, atan2, sqrt, exp
 from random import uniform
 from scipy.io import loadmat, savemat
-from sklearn.preprocessing import StandardScaler
-
-scaler = StandardScaler()
-scaler.fit(loadmat('mats/flight.mat')["x"])
 
 
 class Target:  # 目标
@@ -20,7 +15,7 @@ class Target:  # 目标
         self.am = None
 
 
-class Missile:  # 常规制导武器
+class Vehicle:  # 飞行器
     def __init__(self, state=None, target=None):  # 构造函数
         self.pi = 3.141592653589793  # 圆周率
         self.RAD = 180 / self.pi  # 弧度转角度
@@ -270,101 +265,27 @@ class Missile:  # 常规制导武器
         plt.show()
 
 
-class Vehicle(Missile):
-    def __init__(self, state=None, target=None):  # 构造函数
-        self.d = 0  # 伪目标距离
-        self.R_threshold = 20  # 切换伪目标的距离阈值
-        super().__init__(state, target)
-        self.net = keras.models.load_model("model/dnn.keras")
-        self.td = self.get_tgo()  # 期望飞行时间
-
-    def set_d(self, d, qd=None):  # 设置伪目标和期望落角
-        self.d = d  # 伪目标到终点距离
-        if qd is not None:
-            self.qd = qd  # 期望落角
-
-        xtd = -d * cos(self.qd[0]) * cos(self.qd[1])  # 伪目标x位置
-        ytd = -d * sin(self.qd[0])  # 伪目标y位置
-        ztd = d * cos(self.qd[0]) * sin(self.qd[1])  # 伪目标z位置
-
-        self.target = Target([xtd, ytd, ztd])  # 伪目标
-
-    def newton_iteration_solve_d(self, td):
-        n, dn_1, dn, en = 0, 0, self.R, 1e3
-        en_1 = td - self.get_tgo(dn_1)
-        while abs(en) > 1e-3:
-            en = td - self.get_tgo(dn)
-            dn_next = dn - 0.8 * en / (en - en_1) * (dn - dn_1)
-            en_1, dn_1, dn = en, dn, dn_next
-            n += 1
-        print("迭代次数={}, dn={:.4f}".format(n, dn))
-        self.set_d(dn)
-
-    def get_tgo(self, d=None):
-        if d is None:
-            d = self.d
-        if np.linalg.norm([self.x, self.y, self.z]) - d > self.R_threshold:
-            inputs = scaler.transform(np.concatenate([self.state[1:7], self.qd * self.RAD, [d]])[np.newaxis, :])
-            outputs = self.net.predict(inputs, verbose=0)  # 神经网络单步预测
-            t0, v0 = outputs[0, 0], outputs[0, 1] * 10  # 从当前状态出发，到达伪目标时的时间和速度
-
-            xtd = -d * cos(self.qd[0]) * cos(self.qd[1])  # 伪目标x位置
-            ztd = d * cos(self.qd[0]) * sin(self.qd[1])  # 伪目标z位置
-
-            t1 = self.polynomial_tgo(v0, -np.linalg.norm([xtd, ztd]))  # 从伪目标到真目标的时间
-        else:
-            t0 = 0
-            t1 = self.polynomial_tgo(self.v, -np.linalg.norm([self.x, self.z]))  # 从当前位置到真目标的时间
-        return t0 + t1
-
-    def polynomial_tgo(self, v0, x0):
-        if x0 == 0:
-            return 0
-        # 1.解析速度预测公式
-        a = (self.rho * self.S * -self.cd0) / (2 * self.m * cos(self.qd[0]))  # 零升阻力项系数
-        b = self.g * tan(self.qd[0]) - (2 * self.m * self.g ** 2 * cos(self.qd[0]) * -self.cdalpha) / (
-                self.rho * v0 ** 2 * self.S * self.clalpha ** 2)  # 诱导阻力项系数
-        c = (v0 ** 2 - b / a) * exp(-2 * a * x0)  # 初始状态常系数
-        V = lambda x: max(sqrt(max(c * exp(2 * a * x) + b / a, 0)), 1)  # 速度预测函数
-
-        # 2.多项式速度拟合公式
-        xl = [x0, x0 * 2 / 3, x0 * 1 / 3, 0]  # 多项式预测点
-        vx = [V(x) * cos(self.qd[0]) for x in xl]  # 计算各预测点的速度
-        A = np.array([[x ** (len(xl) - i - 1) for i in range(len(xl))] for x in xl])  # Ax=B方程系数矩阵A
-        B = [1 / v for v in vx]  # Ax=B方程结果向量A
-        k = np.dot(np.linalg.inv(A), B)  # 解方程求得多项式系数
-        Tgo = lambda x: -sum([k[len(xl) - i - 1] / (i + 1) * x ** (i + 1) for i in range(len(xl))])  # tgo预测函数
-        return Tgo(x0)
-
-    def seeker(self, d=None):
-        if d is None:
-            d = self.d
-        if np.linalg.norm([self.x, self.y, self.z]) - d < self.R_threshold:  # 距离伪目标小于阈值时，切换目标
-            self.target = Target()
-        super().seeker()
-
-
-def test_miss():
-    miss = Missile()
+def test_vehicle():
+    vehicle = Vehicle()
     e = 0
     for _ in range(100):
-        miss.modify(los=False)  # state=[0., -10000., 10000., 0., 400., 0., 0., 0., 0., 100],
+        vehicle.modify(los=True)  # state=[0., -10000., 10000., 0., 400., 0., 0., 0., 0., 100],
         done = False
         h = 0.001
 
-        v0 = miss.v
-        x0 = -np.linalg.norm([miss.x, miss.z])
-        a = (miss.rho * miss.S * -miss.cd0) / (2 * miss.m * cos(miss.gamma))
-        bg = miss.g * tan(miss.gamma)
-        bm = (2 * miss.m * miss.g ** 2 * cos(miss.gamma) * -miss.cdalpha) / (
-                miss.rho * v0 ** 2 * miss.S * miss.clalpha ** 2)
+        v0 = vehicle.v
+        x0 = -np.linalg.norm([vehicle.x, vehicle.z])
+        a = (vehicle.rho * vehicle.S * -vehicle.cd0) / (2 * vehicle.m * cos(vehicle.gamma))
+        bg = vehicle.g * tan(vehicle.gamma)
+        bm = (2 * vehicle.m * vehicle.g ** 2 * cos(vehicle.gamma) * -vehicle.cdalpha) / (
+                vehicle.rho * v0 ** 2 * vehicle.S * vehicle.clalpha ** 2)
         b = bg - bm
         c = (v0 ** 2 - b / a) * exp(-2 * a * x0)
 
         V = lambda x: max(sqrt(max(c * exp(2 * a * x) + b / a, 0)), 1)
 
         xl = [x0, x0 * 2 / 3, x0 * 1 / 3, 0]
-        vx = [V(x) * cos(miss.gamma) for x in xl]
+        vx = [V(x) * cos(vehicle.gamma) for x in xl]
         A = np.array([[x ** (len(xl) - i - 1) for i in range(len(xl))] for x in xl])
         B = [1 / v for v in vx]
         k = np.dot(np.linalg.inv(A), B)
@@ -373,73 +294,35 @@ def test_miss():
         tgo = []
         v = []
         while done is False:
-            done = miss.step(h)
+            done = vehicle.step(h)
 
-            xm = -np.linalg.norm([miss.x, miss.z])
+            xm = -np.linalg.norm([vehicle.x, vehicle.z])
 
             tgo.append(Tgo(xm))
             v.append(V(xm))
 
-        states = np.array(miss.record["state"])
-        e_max = max(np.array(tgo)[:-2] + states[:-1, 0] - miss.t)
-        e_min = min(np.array(tgo)[:-2] + states[:-1, 0] - miss.t)
+        states = np.array(vehicle.record["state"])
+        e_max = max(np.array(tgo)[:-2] + states[:-1, 0] - vehicle.t)
+        e_min = min(np.array(tgo)[:-2] + states[:-1, 0] - vehicle.t)
 
         if -e_min > e_max:
             e_max = e_min
 
         print("脱靶量={:.4f} 飞行时间={:.4f}, 落角误差={:.4f}, {:.4f}, 最大预测误差={:.4f}".format(
-            miss.R, miss.t, (miss.gamma - miss.qd[0]) * miss.RAD, (miss.psi - miss.qd[1]) * miss.RAD, e_max))
-        # miss.plot_data()
+            vehicle.R, vehicle.t, (vehicle.gamma - vehicle.qd[0]) * vehicle.RAD, (vehicle.psi - vehicle.qd[1]) * vehicle.RAD, e_max))
+        vehicle.plot_data()
         e += e_max
 
         plt.ion()
         plt.clf()
         # tgo
         plt.plot(states[:, 0], np.array(tgo)[:-1])
-        plt.plot(states[:, 0], miss.t - states[:, 0])
+        plt.plot(states[:, 0], vehicle.t - states[:, 0])
         # # v
         # plt.plot(states[:, 0], np.array(v)[:-1])
         # plt.plot(states[:, 0], states[:, 4])
         plt.pause(0.1)
 
-    print(e)
-
-
-def test_vehicle():
-    miss = Vehicle()
-    e = 0
-    for td in [55., 60., 65., 70., 75., 80.]:
-        miss.modify(state=[0., -10000., 10000., 1000., 400., -30. / miss.RAD, 0. / miss.RAD, 0., 0., 84.6])
-        # miss.set_d(uniform(600, 6000), np.array([uniform(-85, -25), uniform(-30, 30)]) / miss.RAD)  # monte carlo
-        miss.set_d(0, np.array([-80, 10.]) / miss.RAD)  # 设置期望落角
-        miss.newton_iteration_solve_d(td)  # 根据飞行时间计算伪目标
-
-        done = False
-        h = 0.01
-
-        tgo = []
-        while done is False:
-            done = miss.step(h)
-            tgo.append(miss.get_tgo())
-
-        states = np.array(miss.record["state"])
-        e_max = max(np.array(tgo)[:-2] + states[:-1, 0] - miss.t)
-        e_min = min(np.array(tgo)[:-2] + states[:-1, 0] - miss.t)
-
-        if -e_min > e_max:
-            e_max = e_min
-
-        print("脱靶量={:.4f} 飞行时间={:.4f}, 落角误差={:.4f}, {:.4f}, 最大时间预测误差={:.4f}".format(
-            miss.R, miss.t, (miss.q[0] + miss.qd[0]) * miss.RAD, 180 - abs(miss.q[1] - miss.qd[1]) * miss.RAD, e_max))
-        # miss.plot_data()
-        e += e_max ** 2
-        plt.ion()
-        plt.clf()
-        # tgo
-        plt.plot(states[:, 0], np.array(tgo)[:-1])
-        plt.plot(states[:, 0], miss.t - states[:, 0])
-        plt.pause(0.1)
-        # plt.show()
     print(e)
 
 

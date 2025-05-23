@@ -1,21 +1,21 @@
 function dstate=dery(state)
-%Î¢·Ö·½³ÌµÄÓÒº¯Êı
+%å¾®åˆ†æ–¹ç¨‹çš„å³å‡½æ•°
 g=9.80665;
 s=num2cell(state);
 [t, x, y, z, v, gamma, psi, alpha, beta, m] = deal(s{:});
-%% ÔË¶¯Ñ§·½³Ì
-dx=v*cos(gamma)*cos(psi);%x±±Ïò
-dy=v*sin(gamma);%yÌìÏò
-dz=-v*cos(gamma)*sin(psi);%z¶«Ïò
+%% è¿åŠ¨å­¦æ–¹ç¨‹
+dx=v*cos(gamma)*cos(psi);%xåŒ—å‘
+dy=v*sin(gamma);%yå¤©å‘
+dz=-v*cos(gamma)*sin(psi);%zä¸œå‘
 
-%% ¶¯Á¦Ñ§·½³Ì
-[L,D,B] = GetF(state);  % ¼ÆËãÆø¶¯Á¦
+%% åŠ¨åŠ›å­¦æ–¹ç¨‹
+[L,D,B] = GetF(state);  % è®¡ç®—æ°”åŠ¨åŠ›
 
-dv = D/m-g*sin(gamma);  % ËÙ¶È±êÁ¿
-dgamma=(L-m*g*cos(gamma))/(m*v);  % µ¯µÀÇã½Ç
-dpsi = -B/(m*v*cos(gamma));  % µ¯µÀÆ«½Ç
+dv = D/m-g*sin(gamma);  % é€Ÿåº¦æ ‡é‡
+dgamma=(L-m*g*cos(gamma))/(m*v);  % å¼¹é“å€¾è§’
+dpsi = -B/(m*v*cos(gamma));  % å¼¹é“åè§’
 
-%ÆäËû·½³Ì
+%å…¶ä»–æ–¹ç¨‹
 dt=1;
 dalpha=0;
 dbeta=0;

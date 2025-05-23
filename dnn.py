@@ -5,21 +5,18 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import keras
 import numpy as np
 from scipy.io import loadmat, savemat
-from sklearn.preprocessing import StandardScaler
 from sklearn.utils import shuffle
+from sklearn.preprocessing import StandardScaler
 
 l = 4
 u = 128
-scaler = StandardScaler()
 
 
 def load_data(file, shuffle_flag=True):
     data_raw = loadmat(file)
-    x = data_raw["x"]
-    y = np.dot(np.squeeze(data_raw["y"], axis=2).T, np.diag([1, 0.1]))
-
-    scaler.fit(loadmat('mats/flight.mat')["x"])
-    x = scaler.transform(x)
+    scaler = StandardScaler()
+    x = scaler.fit_transform(data_raw["x"])
+    y = np.dot(data_raw["y"], np.diag([1, 0.2]))
 
     if shuffle_flag:
         x, y = shuffle(x, y, random_state=1)
@@ -34,9 +31,8 @@ def init_network(l, u, dim):
     x = keras.layers.Input(shape=[dim[0]], name="input")
     xm = keras.layers.Dense(units=u, activation='gelu', name="hidden_0")(x)
     for i in range(l):
-        xm = keras.layers.Dense(units=u, activation='gelu', name="hidden_{}".format(3 * i + 1))(xm)
-        xm = keras.layers.Dense(units=u, activation='gelu', name="hidden_{}".format(3 * i + 2))(xm)
-        xm = keras.layers.Dense(units=u, activation='gelu', name="hidden_{}".format(3 * i + 3))(xm) + xm
+        xm = keras.layers.Dense(units=u, activation='gelu', name="hidden_{}".format(2 * i + 1))(xm) + xm
+        xm = keras.layers.Dense(units=u, activation='gelu', name="hidden_{}".format(2 * i + 2))(xm)
     y = keras.layers.Dense(dim[1], name='output')(xm)
     model = keras.Model(inputs=x, outputs=y)
     return model
@@ -53,11 +49,11 @@ def train(path, h5file, lr=0.001):
     model.summary()
 
     def scheduler(epoch):
-        return lr * 0.99 ** epoch
+        return lr * 0.995 ** epoch
 
     rs = keras.callbacks.LearningRateScheduler(scheduler)
     tb = keras.callbacks.TensorBoard(log_dir='logs/dnn', write_images=True)
-    model.fit(x, y, batch_size=200000, epochs=200, validation_split=0.02, verbose=1, callbacks=[tb, rs])
+    model.fit(x, y, batch_size=50000, epochs=1000, validation_split=0.02, verbose=1, callbacks=[tb, rs])
     model.save(h5file)
     return model
 

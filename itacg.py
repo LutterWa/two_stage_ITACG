@@ -1,0 +1,124 @@
+import keras
+import numpy as np
+import matplotlib.pyplot as plt
+from math import sin, cos, tan, sqrt, exp
+from vehicle import Target, Vehicle
+
+mean = np.array(
+    [-7293.59539414528, 7034.09764749419, 0.463034517729311, 217.085481779424, -0.296250331656634, 0.000971158061971267,
+     -64.1896983182811, -0.0523647438757335, 4393.56818181308])
+std = np.array(
+    [4080.06272650577, 2138.82795214506, 1737.57421005196, 104.189030695792, 0.396305952757750, 0.386134606383824,
+     16.9663581499944, 17.4861714523821, 2169.38778422533])
+
+
+class Itacg(Vehicle):
+    def __init__(self, state=None, target=None):  # 构造函数
+        self.d = 0  # 伪目标距离
+        self.R_threshold = 20  # 切换伪目标的距离阈值
+        super().__init__(state, target)
+        self.net = keras.models.load_model("model/dnn.keras")
+        self.td = self.get_tgo()  # 期望飞行时间
+
+    def set_d(self, d, qd=None):  # 设置伪目标和期望落角
+        self.d = d  # 伪目标到终点距离
+        if qd is not None:
+            self.qd = qd  # 期望落角
+
+        xtd = -d * cos(self.qd[0]) * cos(self.qd[1])  # 伪目标x位置
+        ytd = -d * sin(self.qd[0])  # 伪目标y位置
+        ztd = d * cos(self.qd[0]) * sin(self.qd[1])  # 伪目标z位置
+
+        self.target = Target([xtd, ytd, ztd])  # 伪目标
+        # print("tf={:.4f}".format(self.get_tgo()))
+
+    def newton_iteration_solve_d(self, td):
+        n, dn_1, dn, en = 0, 0, self.R, 1e3
+        en_1 = td - self.get_tgo(dn_1)
+        while abs(en) > 1e-3:
+            en = td - self.get_tgo(dn)
+            dn_next = dn - 0.8 * en / (en - en_1) * (dn - dn_1)
+            en_1, dn_1, dn = en, dn, dn_next
+            n += 1
+        print("迭代次数={}, dn={:.4f}".format(n, dn))
+        self.set_d(dn)
+
+    def get_tgo(self, d=None):
+        if d is None:
+            d = self.d
+        if np.linalg.norm([self.x, self.y, self.z]) - d > self.R_threshold:
+            inputs = (np.concatenate([self.state[1:7], self.qd * self.RAD, [d]])[np.newaxis, :] - mean) / std
+            outputs = self.net.predict(inputs, verbose=0)  # 神经网络单步预测
+            t0, v0 = outputs[0, 0], outputs[0, 1] * 5  # 从当前状态出发，到达伪目标时的时间和速度
+
+            xtd = -d * cos(self.qd[0]) * cos(self.qd[1])  # 伪目标x位置
+            ztd = d * cos(self.qd[0]) * sin(self.qd[1])  # 伪目标z位置
+
+            t1 = self.polynomial_tgo(v0, -np.linalg.norm([xtd, ztd]))  # 从伪目标到真目标的时间
+        else:
+            t0 = 0
+            t1 = self.polynomial_tgo(self.v, -np.linalg.norm([self.x, self.z]))  # 从当前位置到真目标的时间
+        return t0 + t1
+
+    def polynomial_tgo(self, v0, x0):
+        if x0 == 0:
+            return 0
+        # 1.解析速度预测公式
+        a = (self.rho * self.S * -self.cd0) / (2 * self.m * cos(self.qd[0]))  # 零升阻力项系数
+        b = self.g * tan(self.qd[0]) - (2 * self.m * self.g ** 2 * cos(self.qd[0]) * -self.cdalpha) / (
+                self.rho * v0 ** 2 * self.S * self.clalpha ** 2)  # 诱导阻力项系数
+        c = (v0 ** 2 - b / a) * exp(-2 * a * x0)  # 初始状态常系数
+        V = lambda x: max(sqrt(max(c * exp(2 * a * x) + b / a, 0)), 1)  # 速度预测函数
+
+        # 2.多项式速度拟合公式
+        xl = [x0, x0 * 2 / 3, x0 * 1 / 3, 0]  # 多项式预测点
+        vx = [V(x) * cos(self.qd[0]) for x in xl]  # 计算各预测点的速度
+        A = np.array([[x ** (len(xl) - i - 1) for i in range(len(xl))] for x in xl])  # Ax=B方程系数矩阵A
+        B = [1 / v for v in vx]  # Ax=B方程结果向量A
+        k = np.dot(np.linalg.inv(A), B)  # 解方程求得多项式系数
+        Tgo = lambda x: -sum([k[len(xl) - i - 1] / (i + 1) * x ** (i + 1) for i in range(len(xl))])  # tgo预测函数
+        return Tgo(x0)
+
+    def seeker(self, d=None):
+        if d is None:
+            d = self.d
+        if np.linalg.norm([self.x, self.y, self.z]) - d < self.R_threshold:  # 距离伪目标小于阈值时，切换目标
+            self.target = Target()
+        super().seeker()
+
+
+def test_itacg():
+    vehicle = Itacg()
+    e = 0
+    for td in [55., 60., 65., 70., 75., 80.]:
+        vehicle.modify(state=[0., -10000., 10000., 1000., 400., 0. / vehicle.RAD, 0. / vehicle.RAD, 0., 0., 84.6])
+        # vehicle.set_d(uniform(600, 6000), np.array([uniform(-85, -25), uniform(-30, 30)]) / vehicle.RAD)  # monte carlo
+        vehicle.set_d(0, np.array([-80, 10.]) / vehicle.RAD)  # 设置期望落角
+        vehicle.newton_iteration_solve_d(td)  # 根据飞行时间计算伪目标
+
+        done = False
+        h = 0.001
+        t, n = 0, int(1 / h)
+        tgo = []
+        while done is False:
+            done = vehicle.step(h)
+            if t % n == 0:
+                tgo.append(vehicle.get_tgo())
+            else:
+                tgo.append(tgo[-1] - h)
+            t += 1
+        print("脱靶量={:.4f} 飞行时间={:.4f}, 落角误差={:.4f}, {:.4f}, 时间误差={:.4f}".format(
+            vehicle.R, vehicle.t, (vehicle.q[0] + vehicle.qd[0]) * vehicle.RAD,
+                                  180 - abs(vehicle.q[1] - vehicle.qd[1]) * vehicle.RAD, td - vehicle.t))
+        vehicle.plot_data()
+        # plt.ion()
+        # plt.clf()
+        # # tgo
+        # states = np.array(vehicle.record["state"])
+        # plt.plot(states[:, 0], np.array(tgo)[:-1])
+        # plt.plot(states[:, 0], vehicle.t - states[:, 0])
+        # plt.pause(0.1)
+
+
+if __name__ == '__main__':
+    test_itacg()

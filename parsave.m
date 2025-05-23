@@ -1,8 +1,7 @@
-function parsave(x0, y0, z0, v0, gamma0, psi0, qgt, qpt, d, restate)
-RAD = 180/pi;
-filename = sprintf('data/flight_x%d_y%d_z%d_v%d_gamma%d_psi%d_qgt%d_qpt%d_d%d.mat', ...
-    round(x0), round(y0), round(z0), ...
-    round(v0), round(gamma0*RAD), round(psi0*RAD), ...
-    round(qgt*RAD), round(qpt*RAD), round(d));
+function parsave(i, p, restate)
+para = num2cell(p);
+[~, ~, ~, ~, ~, ~, qgt, qpt, ~, d] = deal(para{:});
+filename = sprintf('data/flight_%d_qgt%d_qpt%d_d%d.mat', ...
+    round(i), round(qgt), round(qpt), round(d));
 save(filename, 'restate');
 end

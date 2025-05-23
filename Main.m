@@ -1,150 +1,128 @@
-% «Â≥˝ª∑æ≥±‰¡ø
+% Ê∏ÖÈô§ÁéØÂ¢ÉÂèòÈáè
 clear
 clc
 
-% ≥£¡ø
+% Â∏∏Èáè
 RAD = 180/pi;
 S = 0.057;
 g=9.80665;
+%          x       y      z     v   gamma      psi        qd      m    d
+ini_min = [-20000, 5000, -5000, 400, -30/RAD, -30/RAD, -89, -30, 84.6, 600];
+ini_max = [-10000, 10000, 5000, 600,  30/RAD,  30/RAD, -30,  30, 84.6, 8000];
 
-% ≤Œ ˝∑∂Œß
-x_values = -10000:-5000:-15000;  % …‰≥Ã
-y_values = 5000:5000:10000;  % ∏ﬂ∂»
-z_values = -2000:2000:2000;  % ≤‡œÚ
-velocity_values = 400:100:600;  % ÀŸ∂»
-gamma_values = (-30:30:30) / RAD;  % µØµ¿«„Ω«
-psi_values = (-30:30:30) / RAD;  % µØµ¿∆´Ω«
-qgt_values = (-80:20:-40) / RAD;  % ∏©—ˆ∑ΩœÚ∆⁄Õ˚¬‰Ω«
-qpt_values = (-20:20:20) / RAD;  % ∆´∫Ω∑ΩœÚ∆⁄Õ˚¬‰Ω«
-d_values = 600:900:6000; % Ωª∞‡µ„µΩ¬‰µ„æ‡¿Î
+ktraj = 50000;
 
-disp(length(velocity_values)* ...
-    length(gamma_values)* ...
-    length(psi_values)* ...
-    length(x_values)* ...
-    length(y_values)* ...
-    length(z_values)* ...
-    length(qgt_values)* ...
-    length(qpt_values)* ...
-    length(d_values));  % ≤…—˘µØµ¿Ãı ˝
+para = latin(ktraj, length(ini_min), ini_min, ini_max);
 
-% ±È¿˙À˘”–◊È∫œ
-for v0 = velocity_values
-    for gamma0 = gamma_values
-        for psi0 = psi_values
-            for x0 = x_values
-                for y0 = y_values
-                    for z0 = z_values
-                        for qgt = qgt_values
-                            for qpt = qpt_values
-                                % ±È¿˙ d ÷µ
-                                parfor i = 1:length(d_values)
-                                    d = d_values(i) * -80 / round(qgt * RAD);
-                                    xtd = -d * cos(qgt)*cos(qpt);
-                                    ytd = -d * sin(qgt);
-                                    ztd = d * cos(qgt)*sin(qpt);
+para(:,7) = round(para(:,7));
+para(:,8) = round(para(:,8));
+para(:,10) = round(para(:,10));
 
-                                    % ≥ı ºªØ◊¥Ã¨
-                                    restate = [];
+% ÈÅçÂéÜÊâÄÊúâÁªÑÂêà
+parfor i = 1:ktraj
+    p = para(i,:);
+    qgt = p(7) / RAD;
+    qpt = p(8) / RAD;
+    d = p(10);
+    xtd = -d * cos(qgt)*cos(qpt);
+    ytd = -d * sin(qgt);
+    ztd = d * cos(qgt)*sin(qpt);
 
-                                    state = [0, x0, y0, z0, v0, gamma0, psi0, 0, 0, 84.6]; %  π”√µ±«∞≥ı ºÃıº˛
-                                    s=num2cell(state);
-                                    [t, x, y, z, v, gamma, psi, alpha, beta, m] = deal(s{:});
+    % ÂàùÂßãÂåñÁä∂ÊÄÅ
+    restate = [];
+    state = [0, p(1), p(2), p(3), p(4), p(5), p(6), 0, 0, p(9)];  % ‰ΩøÁî®ÂΩìÂâçÂàùÂßãÊù°‰ª∂
+    s=num2cell(state);
+    [t, x, y, z, v, gamma, psi, alpha, beta, m] = deal(s{:});
 
-                                    % ≥ı ºº∆À„
-                                    r = [xtd, ytd, ztd] - [x, y, z];
+    % ÂàùÂßãËÆ°ÁÆó
+    r = [xtd, ytd, ztd] - [x, y, z];
 
-                                    R = norm(r);
-                                    q = [atan2( r(2), norm([r(1), r(3)]) );
-                                        -atan2( r(3), r(1) )];
-                                    eta = [gamma; psi] - q;  % µºµØÀŸ∂»«∞÷√Ω«
-                                    Rdot = -v * cos( eta(1) ) * cos( eta(2) );
-                                    qdot = [-v * sin( eta(1) );
-                                        v * cos( eta(1) ) * sin( eta(2) ) / cos( q(1) )] / R;
+    R = norm(r);
+    q = [atan2( r(2), norm([r(1), r(3)]) );
+        -atan2( r(3), r(1) )];
+    eta = [gamma; psi] - q;  % ÂØºÂºπÈÄüÂ∫¶ÂâçÁΩÆËßí
+    Rdot = -v * cos( eta(1) ) * cos( eta(2) );
+    qdot = [-v * sin( eta(1) );
+        v * cos( eta(1) ) * sin( eta(2) ) / cos( q(1) )] / R;
 
-                                    while (t < 800)
-                                        if (y < 0)  % || Rdot >= 0
-                                            break;
-                                        end
+    while (t < 800)
+        if (y < 0)  % || Rdot >= 0
+            break;
+        end
 
-                                        % ◊¥Ã¨±‰¡ø∏¸–¬
-                                        s=num2cell(state);
-                                        [t, x, y, z, v, gamma, psi, ~, ~, m] = deal(s{:});
+        % Áä∂ÊÄÅÂèòÈáèÊõ¥Êñ∞
+        s=num2cell(state);
+        [t, x, y, z, v, gamma, psi, ~, ~, m] = deal(s{:});
 
-                                        % ∆µ„µΩΩª∞‡µ„
-                                        if abs(x) > abs(xtd)
-                                            xt = xtd;
-                                            yt = ytd;
-                                            zt = ztd;
+        % Ëµ∑ÁÇπÂà∞‰∫§Áè≠ÁÇπ
+        if abs(x) > abs(xtd)
+            xt = xtd;
+            yt = ytd;
+            zt = ztd;
 
-                                            r = [xt, yt, zt] - [x, y, z];
-                                            R = norm(r);
-                                            q = [atan2( r(2), norm([r(1), r(3)]) );
-                                                -atan2( r(3), r(1) )];
-                                            eta = [gamma; psi] - q;  % µºµØÀŸ∂»«∞÷√Ω«
-                                            Rdot = -v * cos( eta(1) ) * cos( eta(2) );
-                                            qdot = [-v * sin( eta(1) );
-                                                v * cos( eta(1) ) * sin( eta(2) ) / cos( q(1) )] / R;
-                                            tgo = R / v;
+            r = [xt, yt, zt] - [x, y, z];
+            R = norm(r);
+            q = [atan2( r(2), norm([r(1), r(3)]) );
+                -atan2( r(3), r(1) )];
+            eta = [gamma; psi] - q;  % ÂØºÂºπÈÄüÂ∫¶ÂâçÁΩÆËßí
+            Rdot = -v * cos( eta(1) ) * cos( eta(2) );
+            qdot = [-v * sin( eta(1) );
+                v * cos( eta(1) ) * sin( eta(2) ) / cos( q(1) )] / R;
+            tgo = R / v;
 
-                                            acg = 4 * v * qdot(1) + 2 * v * (q(1) - qgt) / tgo + g * cos(gamma);
-                                            acp = 4 * v * cos(gamma) * qdot(2) + 2 * v * cos(gamma) * (qpt - q(2)) / tgo;
+            acg = 4 * v * qdot(1) + 2 * v * (q(1) - qgt) / tgo + g * cos(gamma);
+            acp = 4 * v * cos(gamma) * qdot(2) + 2 * v * cos(gamma) * (qpt - q(2)) / tgo;
+            if abs(t-round(t, 1)) < 1e-2
+                restate = [restate; [state, 1]];
+            end
+        else  % ‰∫§Áè≠ÁÇπÂà∞ËêΩÁÇπ
+            xt = 0;
+            yt = 0;
+            zt = 0;
 
-                                            restate = [restate; [state, 1]];
-                                        else  % Ωª∞‡µ„µΩ¬‰µ„
-                                            xt = 0;
-                                            yt = 0;
-                                            zt = 0;
+            r = [xt, yt, zt] - [x, y, z];
+            R = norm(r);
+            q = [atan2( r(2), norm([r(1), r(3)]) );
+                -atan2( r(3), r(1) )];
+            eta = [gamma; psi] - q;  % ÂØºÂºπÈÄüÂ∫¶ÂâçÁΩÆËßí
+            Rdot = -v * cos( eta(1) ) * cos( eta(2) );
+            qdot = [-v * sin( eta(1) );
+                v * cos( eta(1) ) * sin( eta(2) ) / cos( q(1) )] / R;
 
-                                            r = [xt, yt, zt] - [x, y, z];
-                                            R = norm(r);
-                                            q = [atan2( r(2), norm([r(1), r(3)]) );
-                                                -atan2( r(3), r(1) )];
-                                            eta = [gamma; psi] - q;  % µºµØÀŸ∂»«∞÷√Ω«
-                                            Rdot = -v * cos( eta(1) ) * cos( eta(2) );
-                                            qdot = [-v * sin( eta(1) );
-                                                v * cos( eta(1) ) * sin( eta(2) ) / cos( q(1) )] / R;
-
-                                            acg = 3 * v * qdot(1) + g * cos(gamma);
-                                            acp = 3 * v * cos(gamma) * qdot(2);
-
-                                            restate = [restate; [state, 0]];
-                                        end
-
-                                        % ∂Ø¡¶—ß∑Ω≥Ã
-                                        rho = 1.225
-                                        Q=0.5 * rho * v ^ 2;  % ∂Ø—π
-
-                                        clalpha = 49.056;
-                                        alpha = (m * acg) / (Q * S * clalpha);
-                                        beta = (m * acp) / (Q * S * clalpha);
-
-                                        if (alpha > 15 / RAD)
-                                            alpha = 15 / RAD;
-                                        elseif (alpha < -15 / RAD)
-                                            alpha = -15 / RAD;
-                                        end
-
-                                        if (beta > 15 / RAD)
-                                            beta = 15 / RAD;
-                                        elseif (beta < -15 / RAD)
-                                            beta = -15 / RAD;
-                                        end
-                                        state(8) = alpha;
-                                        state(9) = beta;
-
-                                        state = rk4(state);
-                                    end
-                                    % ±£¥ÊΩ·π˚µΩŒƒº˛
-                                    if R < 20
-                                        parsave(x0, y0, z0, v0, gamma0, psi0, qgt, qpt, d, restate);
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
+            acg = 3 * v * qdot(1) + g * cos(gamma);
+            acp = 3 * v * cos(gamma) * qdot(2);
+            if abs(t-round(t, 1)) < 1e-2
+                restate = [restate; [state, 0]];
             end
         end
+
+        % Âä®ÂäõÂ≠¶ÊñπÁ®ã
+        rho = 1.225
+        Q=0.5 * rho * v ^ 2;  % Âä®Âéã
+
+        clalpha = 49.056;
+        alpha = (m * acg) / (Q * S * clalpha);
+        beta = (m * acp) / (Q * S * clalpha);
+
+        if (alpha > 15 / RAD)
+            alpha = 15 / RAD;
+        elseif (alpha < -15 / RAD)
+            alpha = -15 / RAD;
+        end
+
+        if (beta > 15 / RAD)
+            beta = 15 / RAD;
+        elseif (beta < -15 / RAD)
+            beta = -15 / RAD;
+        end
+        state(8) = alpha;
+        state(9) = beta;
+
+        state = rk4(state);
+    end
+    % ‰øùÂ≠òÁªìÊûúÂà∞Êñá‰ª∂
+    if R < 20
+        parsave(i, p, restate);
     end
 end
+

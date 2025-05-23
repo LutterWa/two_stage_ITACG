@@ -1,5 +1,5 @@
 function output=rk4(state)
-%ËÄ½×Áú¸ñ¿âËş·¨
+% å››é˜¶é¾™æ ¼åº“å¡”æ³•
 h=0.02;
 k1=h.*dery(state);
 k2=h.*dery(state+0.5*k1);
