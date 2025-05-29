@@ -268,7 +268,8 @@ class Vehicle:  # 飞行器
 def test_vehicle():
     vehicle = Vehicle()
     e = 0
-    for _ in range(100):
+    result = {"v_real": np.array([]), "v_pred": np.array([]), "tgo_real": np.array([]), "tgo_pred": np.array([])}
+    for i in range(1000):
         vehicle.modify(los=True)  # state=[0., -10000., 10000., 0., 400., 0., 0., 0., 0., 100],
         done = False
         h = 0.001
@@ -277,9 +278,9 @@ def test_vehicle():
         x0 = -np.linalg.norm([vehicle.x, vehicle.z])
         a = (vehicle.rho * vehicle.S * -vehicle.cd0) / (2 * vehicle.m * cos(vehicle.gamma))
         bg = vehicle.g * tan(vehicle.gamma)
-        bm = (2 * vehicle.m * vehicle.g ** 2 * cos(vehicle.gamma) * -vehicle.cdalpha) / (
+        bm = (2 * vehicle.m * vehicle.g ** 2 * cos(vehicle.gamma) * vehicle.cdalpha) / (
                 vehicle.rho * v0 ** 2 * vehicle.S * vehicle.clalpha ** 2)
-        b = bg - bm
+        b = bg + bm
         c = (v0 ** 2 - b / a) * exp(-2 * a * x0)
 
         V = lambda x: max(sqrt(max(c * exp(2 * a * x) + b / a, 0)), 1)
@@ -295,9 +296,7 @@ def test_vehicle():
         v = []
         while done is False:
             done = vehicle.step(h)
-
             xm = -np.linalg.norm([vehicle.x, vehicle.z])
-
             tgo.append(Tgo(xm))
             v.append(V(xm))
 
@@ -309,20 +308,26 @@ def test_vehicle():
             e_max = e_min
 
         print("脱靶量={:.4f} 飞行时间={:.4f}, 落角误差={:.4f}, {:.4f}, 最大预测误差={:.4f}".format(
-            vehicle.R, vehicle.t, (vehicle.gamma - vehicle.qd[0]) * vehicle.RAD, (vehicle.psi - vehicle.qd[1]) * vehicle.RAD, e_max))
-        vehicle.plot_data()
+            vehicle.R, vehicle.t, (vehicle.gamma - vehicle.qd[0]) * vehicle.RAD,
+                                  (vehicle.psi - vehicle.qd[1]) * vehicle.RAD, e_max))
+        # vehicle.plot_data()
         e += e_max
 
-        plt.ion()
-        plt.clf()
-        # tgo
-        plt.plot(states[:, 0], np.array(tgo)[:-1])
-        plt.plot(states[:, 0], vehicle.t - states[:, 0])
-        # # v
-        # plt.plot(states[:, 0], np.array(v)[:-1])
-        # plt.plot(states[:, 0], states[:, 4])
-        plt.pause(0.1)
+        # plt.ion()
+        # plt.clf()
+        # # tgo
+        # plt.plot(states[:, 0], np.array(tgo)[:-1])
+        # plt.plot(states[:, 0], vehicle.t - states[:, 0])
+        # # # v
+        # # plt.plot(states[:, 0], np.array(v)[:-1])
+        # # plt.plot(states[:, 0], states[:, 4])
+        # plt.pause(0.1)
 
+        result["v_pred"] = np.append(result["v_pred"], np.array(v)[:-1])
+        result["v_real"] = np.append(result["v_real"], states[:, 4])
+        result["tgo_pred"] = np.append(result["tgo_pred"], np.array(tgo)[:-1])
+        result["tgo_real"] = np.append(result["tgo_real"], vehicle.t - states[:, 0])
+    savemat('mats/tgo_analytical_predict_monte.mat', result)
     print(e)
 
 
