@@ -2,7 +2,6 @@
 logs/
 data/
 mats/
-model/
 atm2.txt
 *.mat
 *.asv

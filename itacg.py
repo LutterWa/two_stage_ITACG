@@ -33,7 +33,7 @@ class Itacg(Vehicle):
         self.target = Target([xtd, ytd, ztd])  # 伪目标
         # print("tf={:.4f}".format(self.get_tgo()))
 
-    def newton_iteration_solve_d(self, td, verbose=2):
+    def newton_iteration_solve_d(self, td, verbose=2):  # 弦截法
         n, dn_1, dn, en = 0, 0, self.R, 1e3
         en_1 = td - self.get_tgo(dn_1)
         while abs(en) > 1e-3 and abs(dn - dn_1) > 1e-3:
@@ -145,7 +145,7 @@ def monte_carlo():
         vehicle.newton_iteration_solve_d(td, verbose=0)  # 根据飞行时间计算伪目标
 
         done = False
-        h = 0.001
+        h = 0.01
         t, n = 0, int(1 / h)
         tgo = []
         while done is False:

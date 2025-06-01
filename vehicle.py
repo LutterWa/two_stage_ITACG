@@ -75,7 +75,7 @@ class Vehicle:  # 飞行器
         self.state = np.array(state)
         self.qd = np.array([uniform(-90, -30), uniform(-30, 30)]) / self.RAD  # 期望落角
         self.refresh()  # 更新弹体状态
-        self.seeker()  # 更新弹目相对运动学关系
+        self.seeker()  # 更新弹体状态
         if los is True:
             self.state[5] = self.q[0]
             self.state[6] = self.q[1]
@@ -106,7 +106,7 @@ class Vehicle:  # 飞行器
         dz = -v * cos(gamma) * sin(psi)  # z东向
 
         # 动力学
-        L, D, B = self.get_F(state, alpha)  # 计算气动力
+        L, D, B = self.get_F(state, alpha, beta)  # 计算气动力
         g = self.g
         dv = -D / m - g * sin(gamma)  # 速度标量
         dgamma = (L - m * g * cos(gamma)) / (m * v)  # 弹道倾角
@@ -170,11 +170,11 @@ class Vehicle:  # 飞行器
         k4 = h * self.dynamic(self.state + k3)
         self.state = self.state + (k1 + 2 * k2 + 2 * k3 + k4) / 6
 
-    def get_F(self, state, alpha):
-        t, x, y, z, v, gamma, psi, _, beta, m = state
+    def get_F(self, state, alpha, beta):
+        t, x, y, z, v, gamma, psi, _, _, m = state
         Q = 0.5 * self.rho * (self.v ** 2)  # 动压
 
-        cd = self.cd0 + self.cdalpha * alpha ** 2  # 阻力系数
+        cd = self.cd0 + self.cdalpha * (alpha ** 2 + beta ** 2)  # 阻力系数
         cl = self.clalpha * alpha  # 升力系数
         cb = self.clalpha * beta  # 侧向力系数
 
@@ -272,7 +272,7 @@ def test_vehicle():
     for i in range(1000):
         vehicle.modify(los=True)  # state=[0., -10000., 10000., 0., 400., 0., 0., 0., 0., 100],
         done = False
-        h = 0.001
+        h = 0.01
 
         v0 = vehicle.v
         x0 = -np.linalg.norm([vehicle.x, vehicle.z])
@@ -283,7 +283,19 @@ def test_vehicle():
         b = bg + bm
         c = (v0 ** 2 - b / a) * exp(-2 * a * x0)
 
+        q0 = vehicle.q[0]
+        eta0 = -vehicle.eta[0]
+        etaf = vehicle.q[0] - vehicle.qd[0]
+        R0 = vehicle.R
+        y0 = x0 * tan(q0)
+        Y = lambda x: (-(eta0 + etaf) / R0 ** 2 * ((x - x0) / cos(q0)) ** 3 +
+                       (2 * eta0 + etaf) / R0 * ((x - x0) / cos(q0)) ** 2 +
+                       -eta0 * ((x - x0) / cos(q0))) / cos(q0) + x * tan(q0)
+
         V = lambda x: max(sqrt(max(c * exp(2 * a * x) + b / a, 0)), 1)
+
+        # V = lambda x: max(sqrt(max(c * exp(2 * a * x) + b / a, 0)), 1) + sqrt(
+        #     (2 * (y0 - Y(x)) * vehicle.g + v0 ** 2)) - v0
 
         xl = [x0, x0 * 2 / 3, x0 * 1 / 3, 0]
         vx = [V(x) * cos(vehicle.gamma) for x in xl]
@@ -294,11 +306,13 @@ def test_vehicle():
 
         tgo = []
         v = []
+        y = []
         while done is False:
             done = vehicle.step(h)
             xm = -np.linalg.norm([vehicle.x, vehicle.z])
             tgo.append(Tgo(xm))
             v.append(V(xm))
+            y.append(Y(xm))
 
         states = np.array(vehicle.record["state"])
         e_max = max(np.array(tgo)[:-2] + states[:-1, 0] - vehicle.t)
@@ -309,25 +323,30 @@ def test_vehicle():
 
         print("脱靶量={:.4f} 飞行时间={:.4f}, 落角误差={:.4f}, {:.4f}, 最大预测误差={:.4f}".format(
             vehicle.R, vehicle.t, (vehicle.gamma - vehicle.qd[0]) * vehicle.RAD,
-                                  (vehicle.psi - vehicle.qd[1]) * vehicle.RAD, e_max))
+                                  180 - abs(vehicle.q[1] - vehicle.qd[1]) * vehicle.RAD, e_max))
         # vehicle.plot_data()
         e += e_max
 
-        # plt.ion()
-        # plt.clf()
+        plt.ion()
+        plt.clf()
         # # tgo
-        # plt.plot(states[:, 0], np.array(tgo)[:-1])
+        # plt.plot(states[:, 0], np.array(tgo)[:-1], linestyle='--')
         # plt.plot(states[:, 0], vehicle.t - states[:, 0])
-        # # # v
-        # # plt.plot(states[:, 0], np.array(v)[:-1])
-        # # plt.plot(states[:, 0], states[:, 4])
-        # plt.pause(0.1)
+        # # v
+        plt.plot(states[:, 0], np.array(v)[:-1], linestyle='--')
+        plt.plot(states[:, 0], states[:, 4])
+        # y
+        # qs = np.array(vehicle.record["q"])
+        # y_ = np.array([-np.linalg.norm([states[i, 1], states[i, 3]]) * tan(qs[i, 0]) for i in range(qs.shape[0])])
+        # plt.plot(states[:, 1], np.array(y)[:-1], linestyle='--')
+        # plt.plot(states[:, 1], states[:, 2])
+        plt.pause(0.1)
 
         result["v_pred"] = np.append(result["v_pred"], np.array(v)[:-1])
         result["v_real"] = np.append(result["v_real"], states[:, 4])
         result["tgo_pred"] = np.append(result["tgo_pred"], np.array(tgo)[:-1])
         result["tgo_real"] = np.append(result["tgo_real"], vehicle.t - states[:, 0])
-    savemat('mats/tgo_analytical_predict_monte.mat', result)
+    # savemat('mats/tgo_analytical_predict_monte.mat', result)
     print(e)
 
 

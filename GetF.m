@@ -12,7 +12,7 @@ clalpha = 49.056;
 cd0 = 0.2604;
 cdalpha=29.072;
 
-cd = cd0 + cdalpha * alpha ^ 2;  % 阻力系数
+cd = cd0 + cdalpha * (alpha ^ 2 + beta ^ 2);  % 阻力系数
 cl = clalpha * alpha;  % 升力系数
 cb = clalpha * beta;   % 侧向力系数
 
