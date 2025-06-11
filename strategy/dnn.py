@@ -68,6 +68,6 @@ def test(path, h5file):
 
 if __name__ == "__main__":
     file_path = "../mats/flight.mat"
-    modelpath = "model/dnn.keras"
+    modelpath = "../model/dnn.keras"
     train(file_path, modelpath, lr=0.001)
     test(file_path, modelpath)

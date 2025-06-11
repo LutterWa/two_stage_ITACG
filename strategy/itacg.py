@@ -18,7 +18,7 @@ class Itacg(Vehicle):
         self.d = 0  # 伪目标距离
         self.R_threshold = 1  # 切换伪目标的距离阈值
         super().__init__(state, target)
-        self.net = keras.models.load_model("model/dnn.keras")
+        self.net = keras.models.load_model("../model/dnn.keras")
         self.td = self.get_tgo()  # 期望飞行时间
 
     def set_d(self, d, qd=None):  # 设置伪目标和期望落角
