@@ -11,9 +11,9 @@ dz=-v*cos(gamma)*sin(psi);%z东向
 %% 动力学方程
 [L,D,B] = GetF(state);  % 计算气动力
 
-dv = D/m-g*sin(gamma);  % 速度标量
+dv = -D/m-g*sin(gamma);  % 速度标量
 dgamma=(L-m*g*cos(gamma))/(m*v);  % 弹道倾角
-dpsi = -B/(m*v*cos(gamma));  % 弹道偏角
+dpsi = B/(m*v*cos(gamma));  % 弹道偏角
 
 %其他方程
 dt=1;

@@ -30,6 +30,7 @@ parfor i = 1:ktraj
 
     % 初始化状态
     restate = [];
+    ream=[];
     state = [0, p(1), p(2), p(3), p(4), p(5), p(6), 0, 0, p(9)];  % 使用当前初始条件
     s=num2cell(state);
     [t, x, y, z, v, gamma, psi, alpha, beta, m] = deal(s{:});
@@ -46,13 +47,13 @@ parfor i = 1:ktraj
         v * cos( eta(1) ) * sin( eta(2) ) / cos( q(1) )] / R;
 
     while (t < 800)
-        if (y < 0)  % || Rdot >= 0
-            break;
-        end
-
         % 状态变量更新
         s=num2cell(state);
         [t, x, y, z, v, gamma, psi, ~, ~, m] = deal(s{:});
+
+        if (y < 0)
+            break;
+        end
 
         % 起点到交班点
         if abs(x) > abs(xtd)
@@ -60,18 +61,6 @@ parfor i = 1:ktraj
             yt = ytd;
             zt = ztd;
 
-            r = [xt, yt, zt] - [x, y, z];
-            R = norm(r);
-            q = [atan2( r(2), norm([r(1), r(3)]) );
-                -atan2( r(3), r(1) )];
-            eta = [gamma; psi] - q;  % 导弹速度前置角
-            Rdot = -v * cos( eta(1) ) * cos( eta(2) );
-            qdot = [-v * sin( eta(1) );
-                v * cos( eta(1) ) * sin( eta(2) ) / cos( q(1) )] / R;
-            tgo = R / v;
-
-            acg = 4 * v * qdot(1) + 2 * v * (q(1) - qgt) / tgo + g * cos(gamma);
-            acp = 4 * v * cos(gamma) * qdot(2) + 2 * v * cos(gamma) * (qpt - q(2)) / tgo;
             if abs(t-round(t, 1)) < 1e-2
                 restate = [restate; [state, 1]];
             end
@@ -80,27 +69,47 @@ parfor i = 1:ktraj
             yt = 0;
             zt = 0;
 
-            r = [xt, yt, zt] - [x, y, z];
-            R = norm(r);
-            q = [atan2( r(2), norm([r(1), r(3)]) );
-                -atan2( r(3), r(1) )];
-            eta = [gamma; psi] - q;  % 导弹速度前置角
-            Rdot = -v * cos( eta(1) ) * cos( eta(2) );
-            qdot = [-v * sin( eta(1) );
-                v * cos( eta(1) ) * sin( eta(2) ) / cos( q(1) )] / R;
-
-            acg = 3 * v * qdot(1) + g * cos(gamma);
-            acp = 3 * v * cos(gamma) * qdot(2);
             if abs(t-round(t, 1)) < 1e-2
                 restate = [restate; [state, 0]];
             end
         end
 
+        r = [xt, yt, zt] - [x, y, z];
+        R = norm(r);
+        q = [atan2( r(2), norm([r(1), r(3)]) );
+            -atan2( r(3), r(1) )];
+        eta = [gamma; psi] - q;  % 导弹速度前置角
+        Rdot = -v * cos( eta(1) ) * cos( eta(2) );
+        qdot = [-v * sin( eta(1) );
+            v * cos( eta(1) ) * sin( eta(2) ) / cos( q(1) )] / R;
+
+        r = [xt, yt, zt] - [x, y, z];
+        R = norm(r);
+        q = [atan2( r(2), norm([r(1), r(3)]) );
+            -atan2( r(3), r(1) )];
+        eta = [gamma; psi] - q;  % 导弹速度前置角
+        Rdot = -v * cos( eta(1) ) * cos( eta(2) );
+        qdot = [-v * sin( eta(1) );
+            v * cos( eta(1) ) * sin( eta(2) ) / cos( q(1) )] / R;
+
         % 动力学方程
-        rho = 1.225
+        rho=1.225;
+        clalpha = 49.056;
+        cd0 = 0.2604;
+        cdalpha=29.072;
         Q=0.5 * rho * v ^ 2;  % 动压
 
-        clalpha = 49.056;
+        k = (rho * S * cd0) / (2 * m);
+        mu = 4 * k * R;
+        N1 = (mu^2*(1+(mu-1)*exp(mu)))/((1-exp(mu))^2-mu^2*exp(mu));
+        N2 = 3 * (mu*(mu+2+(mu-2)*exp(mu)))/((1-exp(mu))^2-mu^2*exp(mu));
+
+        m_mx = 10 * g;
+        acg = min(max(v^2 / R * (N1 * (q(1) - gamma) + N2 * (q(1) - qgt)) + cos(gamma) * g, -m_mx), m_mx);
+        acp = min(max(v^2 * cos(gamma) / R * (N1 * (q(2) - psi) + N2 * (q(2) - qpt)), -m_mx), m_mx);
+
+        ream = [ream;[acg,acp]];
+
         alpha = (m * acg) / (Q * S * clalpha);
         beta = (m * acp) / (Q * S * clalpha);
 
@@ -119,10 +128,10 @@ parfor i = 1:ktraj
         state(9) = beta;
 
         state = rk4(state);
+
     end
     % 保存结果到文件
     if R < 20
         parsave(i, p, restate);
     end
 end
-

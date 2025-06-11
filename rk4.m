@@ -1,6 +1,6 @@
 function output=rk4(state)
-% 四阶龙格库塔法
-h=0.02;
+%四阶龙格库塔法
+h=0.01;
 k1=h.*dery(state);
 k2=h.*dery(state+0.5*k1);
 k3=h.*dery(state+0.5*k2);

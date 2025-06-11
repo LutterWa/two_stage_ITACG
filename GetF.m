@@ -18,7 +18,7 @@ cb = clalpha * beta;   % 侧向力系数
 
 Q=0.5*rho*v^2;  % 动压
 
-D = -cd * Q * S;  % 阻力
+D = cd * Q * S;  % 阻力
 L = cl * Q * S;  % 升力
 B = cb * Q * S;  % 侧向力
 end
