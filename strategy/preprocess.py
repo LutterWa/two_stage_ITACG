@@ -23,8 +23,8 @@ def data2mat(load_path):  # 回归器数据预处理，loadpath用二级目录�
         if f.endswith(".mat"):
             mat_files.append(f)
 
-    if not os.path.isdir("mats"):  # 创建目标文件夹
-        os.mkdir("mats")
+    if not os.path.isdir("../mats"):  # 创建目标文件夹
+        os.mkdir("../mats")
 
     # 解析data文件
     l, h, s = 0, 100 / len(mat_files), 200
@@ -70,7 +70,7 @@ def data2mat(load_path):  # 回归器数据预处理，loadpath用二级目录�
 
     scaler.fit(x_cat)
 
-    savemat('mats/flight.mat',
+    savemat('../mats/flight.mat',
             {"x": x_cat,
              "y": y_cat,
              "mean": scaler.mean_,

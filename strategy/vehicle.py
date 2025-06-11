@@ -347,7 +347,7 @@ def test_vehicle():
         result["v_real"] = np.append(result["v_real"], states[:, 4])
         result["tgo_pred"] = np.append(result["tgo_pred"], np.array(tgo)[:-1])
         result["tgo_real"] = np.append(result["tgo_real"], vehicle.t - states[:, 0])
-    # savemat('mats/tgo_analytical_predict_monte.mat', result)
+    # savemat('../mats/tgo_analytical_predict_monte.mat', result)
     print(e)
 
 

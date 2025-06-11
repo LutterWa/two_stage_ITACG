@@ -63,11 +63,11 @@ def test(path, h5file):
     x, y, dim = load_data(path, shuffle_flag=False)
     model = keras.models.load_model(h5file)
     y_ = model.predict(x, batch_size=100000)
-    savemat('mats/test_{}.mat'.format(savepath), {"y": y, "y_": y_})
+    savemat('../mats/test_{}.mat'.format(savepath), {"y": y, "y_": y_})
 
 
 if __name__ == "__main__":
-    file_path = "mats/flight.mat"
+    file_path = "../mats/flight.mat"
     modelpath = "model/dnn.keras"
     train(file_path, modelpath, lr=0.001)
     test(file_path, modelpath)

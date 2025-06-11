@@ -135,7 +135,7 @@ def test_itacg(task):
             print("脱靶量={:.4f} 飞行时间={:.4f}, 落角误差={:.4f}, {:.4f}, 时间误差={:.4f}".format(
                 vehicle.R, vehicle.t, (vehicle.q[0] + vehicle.qd[0]) * vehicle.RAD,
                                       180 - abs(vehicle.q[1] - vehicle.qd[1]) * vehicle.RAD, td - vehicle.t))
-            savemat('mats/sim_td_{:d}_ad_{:d}_{:d}.mat'.format(
+            savemat('../mats/sim_td_{:d}_ad_{:d}_{:d}.mat'.format(
                 int(td), -int(vehicle.qd[0] * vehicle.RAD), int(vehicle.qd[1] * vehicle.RAD)),
                 dict(vehicle.record, **{"tgo": np.array(tgo)[:-1]}))
             vehicle.plot_data()
@@ -176,7 +176,7 @@ def monte_carlo():
         result["am"].append(vehicle.record["am"])
         result["tgo"].append(np.array(tgo)[:-1])
 
-    savemat('mats/sim_monte_carlo.mat', result)
+    savemat('../mats/sim_monte_carlo.mat', result)
 
 
 if __name__ == '__main__':
