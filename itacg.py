@@ -6,17 +6,17 @@ from vehicle import Target, Vehicle
 from scipy.io import savemat
 
 mean = np.array(
-    [-7293.59539414528, 7034.09764749419, 0.463034517729311, 217.085481779424, -0.296250331656634, 0.000971158061971267,
-     -64.1896983182811, -0.0523647438757335, 4393.56818181308])
+    [-6657.11940527820, 6988.18354972679, -16.5024714054997, 196.391178827473, -0.274875294270398, -0.00159606585129713,
+     -62.6878122353835, -0.0456698377692581, 4197.77870823977])
 std = np.array(
-    [4080.06272650577, 2138.82795214506, 1737.57421005196, 104.189030695792, 0.396305952757750, 0.386134606383824,
-     16.9663581499944, 17.4861714523821, 2169.38778422533])
+    [4085.77300019679, 2375.80315217220, 2572.01114790482, 107.588660655523, 0.437226936901501, 0.549190523363442,
+     16.7145667698595, 17.4635129871998, 2145.17152053676])
 
 
 class Itacg(Vehicle):
     def __init__(self, state=None, target=None):  # 构造函数
         self.d = 0  # 伪目标距离
-        self.R_threshold = 20  # 切换伪目标的距离阈值
+        self.R_threshold = 1  # 切换伪目标的距离阈值
         super().__init__(state, target)
         self.net = keras.models.load_model("model/dnn.keras")
         self.td = self.get_tgo()  # 期望飞行时间
@@ -36,14 +36,28 @@ class Itacg(Vehicle):
     def newton_iteration_solve_d(self, td, verbose=2):  # 弦截法
         n, dn_1, dn, en = 0, 0, self.R, 1e3
         en_1 = td - self.get_tgo(dn_1)
-        while abs(en) > 1e-3 and abs(dn - dn_1) > 1e-3:
+        while abs(en) > 1e-3 and abs(dn - dn_1) > 1e-6:
             en = td - self.get_tgo(dn)
-            dn_next = dn - 0.8 * en / (en - en_1) * (dn - dn_1)
+            dn_next = dn - 0.9 * en / (en - en_1) * (dn - dn_1)
             en_1, dn_1, dn = en, dn, dn_next
             n += 1
         if verbose == 2:
             print("迭代次数={}, dn={:.4f}".format(n, dn))
         self.set_d(dn)
+
+    # def newton_iteration_solve_d(self, td, verbose=2):  # 弦截法
+    #     n, dn = 0, self.R / 2
+    #     delta = 0.1
+    #     en = td - self.get_tgo(dn)
+    #     en_nable = (td - self.get_tgo(dn + delta) - en) / delta
+    #     while abs(en) > 1e-3 and abs(en_nable) > 1e-6:
+    #         dn = dn - en / en_nable
+    #         en = td - self.get_tgo(dn)
+    #         en_nable = (td - self.get_tgo(dn + delta) - en) / delta
+    #         n += 1
+    #     if verbose == 2:
+    #         print("迭代次数={}, dn={:.4f}".format(n, dn))
+    #     self.set_d(dn)
 
     def get_tgo(self, d=None):
         if d is None:
@@ -98,20 +112,22 @@ def test_itacg(task):
     elif task == "ad":
         tds = [60.]
         ads = [[-70, 10.], [-70, 20.], [-80, 10.], [-80, 20.]]
+    h = 0.001
 
     for td in tds:
         for ad in ads:
-            vehicle.modify(state=[0., -10000., 10000., 1000., 400., 0. / vehicle.RAD, 0. / vehicle.RAD, 0., 0., 84.6])
+            vehicle.modify(state=[0., -10000., 5000., 1000., 400., 0., 0., 0., 0., 84.6])
             vehicle.set_d(0, np.array(ad) / vehicle.RAD)  # 设置期望落角
             vehicle.newton_iteration_solve_d(td)  # 根据飞行时间计算伪目标
 
             done = False
-            h = 0.001
             t, n = 0, int(1 / h)
             tgo = []
             while done is False:
                 done = vehicle.step(h)
                 if t % n == 0:
+                    # if np.linalg.norm([vehicle.x, vehicle.y, vehicle.z]) - vehicle.d < vehicle.R_threshold:
+                    #     vehicle.newton_iteration_solve_d(td - vehicle.t-h)  # 根据飞行时间计算伪目标
                     tgo.append(vehicle.get_tgo())
                 else:
                     tgo.append(tgo[-1] - h)
@@ -122,14 +138,7 @@ def test_itacg(task):
             savemat('mats/sim_td_{:d}_ad_{:d}_{:d}.mat'.format(
                 int(td), -int(vehicle.qd[0] * vehicle.RAD), int(vehicle.qd[1] * vehicle.RAD)),
                 dict(vehicle.record, **{"tgo": np.array(tgo)[:-1]}))
-            # vehicle.plot_data()
-            # plt.ion()
-            # plt.clf()
-            # # tgo
-            # states = np.array(vehicle.record["state"])
-            # plt.plot(states[:, 0], np.array(tgo)[:-1])
-            # plt.plot(states[:, 0], vehicle.t - states[:, 0])
-            # plt.pause(0.1)
+            vehicle.plot_data()
 
 
 def monte_carlo():
@@ -171,6 +180,6 @@ def monte_carlo():
 
 
 if __name__ == '__main__':
-    # test_itacg("td")
-    # test_itacg("ad")
-    monte_carlo()
+    test_itacg("td")
+    test_itacg("ad")
+    # monte_carlo()

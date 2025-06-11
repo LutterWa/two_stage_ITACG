@@ -24,13 +24,14 @@ class Vehicle:  # 飞行器
         self.clalpha, self.cd0, self.cdalpha = 49.056, 0.2604, 29.072  # 气动力系数
 
         if state is None:
-            self.state = [0, -10000, 10000, 0, 400, 0, 0, 0, 0, 84.6]
+            self.state = [0, -10000, 5000, 1000, 400, 0, 0, 0, 0, 84.6]
         else:
             self.state = state
 
         """自身状态"""
         self.S = 0.057  # 参考面积
         self.m = 84.6  # 重量kg
+        self.k = (self.rho * self.S * self.cd0) / (2 * self.m)  # dv/dR动力学系数
 
         self.t = self.state[0]  # 时间
         self.x = self.state[1]  # x位置
@@ -110,7 +111,7 @@ class Vehicle:  # 飞行器
         g = self.g
         dv = -D / m - g * sin(gamma)  # 速度标量
         dgamma = (L - m * g * cos(gamma)) / (m * v)  # 弹道倾角
-        dpsi = -B / (m * v * cos(gamma))  # 弹道偏角
+        dpsi = B / (m * v * cos(gamma))  # 弹道偏角
 
         # 其他方程
         dt = 1
@@ -142,16 +143,20 @@ class Vehicle:  # 飞行器
                                self.v * cos(self.eta[0]) * sin(self.eta[1])) / cos(self.q[0])]) / self.R
 
     def guidance(self):  # 制导功能
-        R, v, gamma, psi, qdot, q, qd, g = self.R, self.v, self.gamma, self.psi, self.qdot, self.q, self.qd, self.g
-        tgo = R / v
+        R, v, gamma, psi, qdot, q, qd, g, k = self.R, self.v, self.gamma, self.psi, self.qdot, self.q, self.qd, self.g, self.k
         m_mx = 10. * g
-        am = [np.clip(4 * v * qdot[0] + 2 * v * (q[0] - qd[0]) / tgo + cos(gamma) * g, -m_mx, m_mx),
-              np.clip(4 * v * cos(gamma) * qdot[1] + 2 * v * cos(gamma) * (qd[1] - q[1]) / tgo, -m_mx, m_mx)]
+
+        mu = 4 * k * R
+        N1 = (mu ** 2 * (1 + (mu - 1) * exp(mu))) / ((1 - exp(mu)) ** 2 - mu ** 2 * exp(mu))
+        N2 = 3 * (mu * (mu + 2 + (mu - 2) * exp(mu))) / ((1 - exp(mu)) ** 2 - mu ** 2 * exp(mu))
+
+        am = [np.clip(v ** 2 / R * (N1 * (q[0] - gamma) + N2 * (q[0] - qd[0])) + cos(gamma) * g, -m_mx, m_mx),
+              np.clip(v ** 2 * cos(gamma) / R * (N1 * (q[1] - psi) + N2 * (q[1] - qd[1])), -m_mx, m_mx)]
         self.am = np.array(am)
 
     def control(self, h):
-        alpha_bound = np.array([-30., 30.]) / self.RAD  # 攻角范围
-        beta_bound = np.array([-30., 30.]) / self.RAD  # 侧向角范围
+        alpha_bound = np.array([-15., 15.]) / self.RAD  # 攻角范围
+        beta_bound = np.array([-15., 15.]) / self.RAD  # 侧向角范围
         dalpha_bound = self.alpha + np.array([-60., 60.]) / self.RAD * h  # 攻角变化率范围deg/s
         dbeta_bound = self.beta + np.array([-60., 60.]) / self.RAD * h  # 侧向角变化率范围deg/s
 
@@ -174,20 +179,16 @@ class Vehicle:  # 飞行器
         t, x, y, z, v, gamma, psi, _, _, m = state
         Q = 0.5 * self.rho * (self.v ** 2)  # 动压
 
-        cd = self.cd0 + self.cdalpha * (alpha ** 2 + beta ** 2)  # 阻力系数
-        cl = self.clalpha * alpha  # 升力系数
-        cb = self.clalpha * beta  # 侧向力系数
-
-        L = cl * Q * self.S  # 升力
-        D = cd * Q * self.S  # 阻力
-        B = cb * Q * self.S  # 侧向力
+        D = (self.cd0 + self.cdalpha * (alpha ** 2 + beta ** 2)) * Q * self.S  # 阻力
+        L = self.clalpha * alpha * Q * self.S  # 升力
+        B = self.clalpha * beta * Q * self.S  # 侧向力
 
         return L, D, B
 
     def step(self, h=0.001):  # 单步运行
         self.refresh()  # 更新系统状态
 
-        if self.Rdot <= 0:  # 弹道终止条件
+        if self.Rdot <= 0 or self.y > 0:  # 弹道终止条件
             self.seeker()  # 导引
             self.guidance()  # 制导
             self.control(h)  # 控制
@@ -270,9 +271,9 @@ def test_vehicle():
     e = 0
     result = {"v_real": np.array([]), "v_pred": np.array([]), "tgo_real": np.array([]), "tgo_pred": np.array([])}
     for i in range(1000):
-        vehicle.modify(los=True)  # state=[0., -10000., 10000., 0., 400., 0., 0., 0., 0., 100],
+        vehicle.modify(los=True)  # state=[0., -10000., 5000., 1000., 400., 0., 0., 0., 0., 84.6],
         done = False
-        h = 0.01
+        h = 0.001
 
         v0 = vehicle.v
         x0 = -np.linalg.norm([vehicle.x, vehicle.z])
