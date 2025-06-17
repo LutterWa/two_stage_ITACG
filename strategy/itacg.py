@@ -1,8 +1,11 @@
+from warnings import catch_warnings
+
 import keras
 import numpy as np
 from random import seed, uniform
 from math import sin, cos, tan, sqrt, exp
 from vehicle import Target, Vehicle
+import matplotlib.pyplot as plt
 from scipy.io import savemat
 
 mean = np.array(
@@ -16,7 +19,7 @@ std = np.array(
 class Itacg(Vehicle):
     def __init__(self, state=None, target=None):  # 构造函数
         self.d = 0  # 伪目标距离
-        self.R_threshold = 1  # 切换伪目标的距离阈值
+        self.R_threshold = 10  # 切换伪目标的距离阈值
         super().__init__(state, target)
         self.net = keras.models.load_model("../model/dnn.keras")
         self.td = self.get_tgo()  # 期望飞行时间
@@ -31,33 +34,25 @@ class Itacg(Vehicle):
         ztd = d * cos(self.qd[0]) * sin(self.qd[1])  # 伪目标z位置
 
         self.target = Target([xtd, ytd, ztd])  # 伪目标
-        # print("tf={:.4f}".format(self.get_tgo()))
 
     def newton_iteration_solve_d(self, td, verbose=2):  # 弦截法
-        n, dn_1, dn, en = 0, 0, self.R, 1e3
-        en_1 = td - self.get_tgo(dn_1)
-        while abs(en) > 1e-3 and abs(dn - dn_1) > 1e-6:
+        n, dn = 0, self.R / 2
+        delta = -10
+        en = td - self.get_tgo(dn)
+        while abs(en) > 1e-3:
             en = td - self.get_tgo(dn)
-            dn_next = dn - 0.9 * en / (en - en_1) * (dn - dn_1)
-            en_1, dn_1, dn = en, dn, dn_next
+            en_nable = (td - self.get_tgo(dn + delta) - en) / delta
+            dn = dn - en / en_nable
+            if en_nable == 0 or dn > 3 * self.R or dn < -self.R:
+                break
             n += 1
         if verbose == 2:
             print("迭代次数={}, dn={:.4f}".format(n, dn))
-        self.set_d(dn)
-
-    # def newton_iteration_solve_d(self, td, verbose=2):  # 弦截法
-    #     n, dn = 0, self.R / 2
-    #     delta = 0.1
-    #     en = td - self.get_tgo(dn)
-    #     en_nable = (td - self.get_tgo(dn + delta) - en) / delta
-    #     while abs(en) > 1e-3 and abs(en_nable) > 1e-6:
-    #         dn = dn - en / en_nable
-    #         en = td - self.get_tgo(dn)
-    #         en_nable = (td - self.get_tgo(dn + delta) - en) / delta
-    #         n += 1
-    #     if verbose == 2:
-    #         print("迭代次数={}, dn={:.4f}".format(n, dn))
-    #     self.set_d(dn)
+        if abs(en) > 1e-3 or dn > self.R or dn < 0:
+            return False
+        else:
+            self.set_d(dn)
+            return True
 
     def get_tgo(self, d=None):
         if d is None:
@@ -67,33 +62,32 @@ class Itacg(Vehicle):
             outputs = self.net.predict(inputs, verbose=0)  # 神经网络单步预测
             t0, v0 = outputs[0, 0], outputs[0, 1] * 5  # 从当前状态出发，到达伪目标时的时间和速度
 
-            xtd = -d * cos(self.qd[0]) * cos(self.qd[1])  # 伪目标x位置
-            ztd = d * cos(self.qd[0]) * sin(self.qd[1])  # 伪目标z位置
-
-            t1 = self.polynomial_tgo(v0, -np.linalg.norm([xtd, ztd]))  # 从伪目标到真目标的时间
+            t1 = self.polynomial_tgo(v0, d)  # 从伪目标到真目标的时间
         else:
             t0 = 0
-            t1 = self.polynomial_tgo(self.v, -np.linalg.norm([self.x, self.z]))  # 从当前位置到真目标的时间
+            t1 = self.polynomial_tgo(self.v, np.linalg.norm([self.x, self.y, self.z]))  # 从当前位置到真目标的时间
         return t0 + t1
 
-    def polynomial_tgo(self, v0, x0):
-        if x0 == 0:
+    def polynomial_tgo(self, v0, r0):
+        if r0 == 0:
             return 0
         # 1.解析速度预测公式
-        a = (self.rho * self.S * -self.cd0) / (2 * self.m * cos(self.qd[0]))  # 零升阻力项系数
-        b = self.g * tan(self.qd[0]) + (2 * self.m * self.g ** 2 * cos(self.qd[0]) * self.cdalpha) / (
-                self.rho * v0 ** 2 * self.S * self.clalpha ** 2)  # 诱导阻力项系数
-        c = (v0 ** 2 - b / a) * exp(-2 * a * x0)  # 初始状态常系数
-        V = lambda x: max(sqrt(max(c * exp(2 * a * x) + b / a, 0)), 1)  # 速度预测函数
+        a = (self.rho * self.S * self.cd0) / (2 * self.m)
+        bg = self.g * sin(self.qd[0])
+        bm = (2 * self.m * self.g ** 2 * cos(self.qd[0]) ** 2 * self.cdalpha) / (
+                self.rho * v0 ** 2 * self.S * self.clalpha ** 2)
+        b = bg + bm
+        c = (v0 ** 2 + b / a) * exp(-2 * a * r0)
+        V = lambda r: max(sqrt(max(c * exp(2 * a * r) - b / a, 0)), 1)
 
         # 2.多项式速度拟合公式
-        xl = [x0, x0 * 2 / 3, x0 * 1 / 3, 0]  # 多项式预测点
-        vx = [V(x) * cos(self.qd[0]) for x in xl]  # 计算各预测点的速度
-        A = np.array([[x ** (len(xl) - i - 1) for i in range(len(xl))] for x in xl])  # Ax=B方程系数矩阵A
-        B = [1 / v for v in vx]  # Ax=B方程结果向量A
-        k = np.dot(np.linalg.inv(A), B)  # 解方程求得多项式系数
-        Tgo = lambda x: -sum([k[len(xl) - i - 1] / (i + 1) * x ** (i + 1) for i in range(len(xl))])  # tgo预测函数
-        return Tgo(x0)
+        R = [r0, r0 * 2 / 3, r0 * 1 / 3, 0]
+        vr = [V(r) for r in R]
+        A = np.array([[r ** (len(R) - i - 1) for i in range(len(R))] for r in R])
+        B = [1 / v for v in vr]
+        k = np.dot(np.linalg.inv(A), B)
+        Tgo = lambda r: sum([k[len(R) - i - 1] / (i + 1) * r ** (i + 1) for i in range(len(R))])
+        return Tgo(r0)
 
     def seeker(self, d=None):
         if d is None:
@@ -127,7 +121,7 @@ def test_itacg(task):
                 done = vehicle.step(h)
                 if t % n == 0:
                     # if np.linalg.norm([vehicle.x, vehicle.y, vehicle.z]) - vehicle.d < vehicle.R_threshold:
-                    #     vehicle.newton_iteration_solve_d(td - vehicle.t-h)  # 根据飞行时间计算伪目标
+                    #     vehicle.newton_iteration_solve_d(td - vehicle.t - h, verbose=0)  # 根据飞行时间计算伪目标
                     tgo.append(vehicle.get_tgo())
                 else:
                     tgo.append(tgo[-1] - h)
@@ -138,35 +132,41 @@ def test_itacg(task):
             savemat('../mats/sim_td_{:d}_ad_{:d}_{:d}.mat'.format(
                 int(td), -int(vehicle.qd[0] * vehicle.RAD), int(vehicle.qd[1] * vehicle.RAD)),
                 dict(vehicle.record, **{"tgo": np.array(tgo)[:-1]}))
-            vehicle.plot_data()
+            # vehicle.plot_data()
 
 
 def monte_carlo():
-    seed(318)  # 设置随机种子
+    seed(0)  # 设置随机种子
     vehicle = Itacg()
-    itr = 500
-    result = {"state": [], "R": [], "q": [], "qdot": [], "eta": [], "am": [], "tgo": []}
+    itr = 1000
+    h = 0.01
+
+    result = {"state": [], "R": [], "q": [], "qdot": [], "eta": [], "am": [], "error": []}
     for i in range(itr):
         vehicle.modify()
-        ad = [uniform(-85, -65), uniform(-25, 25)]  # 期望到达角度
+        ad = [uniform(-80, -60), uniform(-20, 20)]  # 期望到达角度
         vehicle.set_d(0, np.array(ad) / vehicle.RAD)  # 设置期望落角
-        td = vehicle.get_tgo(0) + uniform(1, 10)  # 期望飞行时间
-        vehicle.newton_iteration_solve_d(td, verbose=0)  # 根据飞行时间计算伪目标
+        td = vehicle.get_tgo(0) + uniform(2, 10)  # 期望飞行时间
+
+        j = 0
+        while not vehicle.newton_iteration_solve_d(td, verbose=0):  # 根据飞行时间计算伪目标
+            td = vehicle.get_tgo(0) + uniform(2, 10)
+            j += 1
+            if j > 10:  # 当前初始条件下的时间可达域不满足需求，更新初始条件
+                vehicle.modify()
+                ad = [uniform(-80, -60), uniform(-20, 20)]
+                vehicle.set_d(0, np.array(ad) / vehicle.RAD)
 
         done = False
-        h = 0.01
-        t, n = 0, int(1 / h)
-        tgo = []
         while done is False:
             done = vehicle.step(h)
-            if t % n == 0:
-                tgo.append(vehicle.get_tgo())
-            else:
-                tgo.append(tgo[-1] - h)
-            t += 1
+
         print("仿真次数={:d} 脱靶量={:.4f} 飞行时间={:.4f}, 落角误差={:.4f}, {:.4f}, 时间误差={:.4f}".format(
             i + 1, vehicle.R, vehicle.t, (vehicle.q[0] + vehicle.qd[0]) * vehicle.RAD,
             180 - abs(vehicle.q[1] - vehicle.qd[1]) * vehicle.RAD, td - vehicle.t))
+        if vehicle.R > 1e3 or abs(td - vehicle.t) > 1:
+            vehicle.plot_data()
+
         # 记录本次飞行结果
         result["state"].append(vehicle.record["state"])
         result["R"].append(vehicle.record["R"])
@@ -174,12 +174,13 @@ def monte_carlo():
         result["qdot"].append(vehicle.record["qdot"])
         result["eta"].append(vehicle.record["eta"])
         result["am"].append(vehicle.record["am"])
-        result["tgo"].append(np.array(tgo)[:-1])
+        result["error"].append(np.array([(vehicle.q[0] + vehicle.qd[0]) * vehicle.RAD,
+                                         180 - abs(vehicle.q[1] - vehicle.qd[1]) * vehicle.RAD, td - vehicle.t]))
 
     savemat('../mats/sim_monte_carlo.mat', result)
 
 
 if __name__ == '__main__':
-    test_itacg("td")
-    test_itacg("ad")
-    # monte_carlo()
+    # test_itacg("td")
+    # test_itacg("ad")
+    monte_carlo()

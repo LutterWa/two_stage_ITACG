@@ -68,8 +68,8 @@ class Vehicle:  # 飞行器
                      uniform(5000, 10000),  # y位置
                      uniform(-2000, 2000),  # z位置
                      uniform(400, 600),  # 速度
-                     uniform(-30, 30) / self.RAD,  # 弹道倾角
-                     uniform(-30, 30) / self.RAD,  # 弹道偏角
+                     uniform(-30, 0) / self.RAD,  # 弹道倾角
+                     uniform(-15, 15) / self.RAD,  # 弹道偏角
                      0,  # 攻角
                      0,  # 侧滑角
                      84.6]  # 重量kg
@@ -188,7 +188,7 @@ class Vehicle:  # 飞行器
     def step(self, h=0.001):  # 单步运行
         self.refresh()  # 更新系统状态
 
-        if self.Rdot <= 0 or self.y > 0:  # 弹道终止条件
+        if self.Rdot <= 0:  # 弹道终止条件
             self.seeker()  # 导引
             self.guidance()  # 制导
             self.control(h)  # 控制
@@ -273,47 +273,46 @@ def test_vehicle():
     for i in range(1000):
         vehicle.modify(los=True)  # state=[0., -10000., 5000., 1000., 400., 0., 0., 0., 0., 84.6],
         done = False
-        h = 0.001
+        h = 0.01
 
         v0 = vehicle.v
-        x0 = -np.linalg.norm([vehicle.x, vehicle.z])
-        a = (vehicle.rho * vehicle.S * -vehicle.cd0) / (2 * vehicle.m * cos(vehicle.gamma))
-        bg = vehicle.g * tan(vehicle.gamma)
-        bm = (2 * vehicle.m * vehicle.g ** 2 * cos(vehicle.gamma) * vehicle.cdalpha) / (
+        r0 = vehicle.R
+        a = (vehicle.rho * vehicle.S * vehicle.cd0) / (2 * vehicle.m)
+        bg = vehicle.g * sin(vehicle.gamma)
+        bm = (2 * vehicle.m * vehicle.g ** 2 * cos(vehicle.gamma) ** 2 * vehicle.cdalpha) / (
                 vehicle.rho * v0 ** 2 * vehicle.S * vehicle.clalpha ** 2)
         b = bg + bm
-        c = (v0 ** 2 - b / a) * exp(-2 * a * x0)
+        c = (v0 ** 2 + b / a) * exp(-2 * a * r0)
 
-        q0 = vehicle.q[0]
-        eta0 = -vehicle.eta[0]
-        etaf = vehicle.q[0] - vehicle.qd[0]
-        R0 = vehicle.R
-        y0 = x0 * tan(q0)
-        Y = lambda x: (-(eta0 + etaf) / R0 ** 2 * ((x - x0) / cos(q0)) ** 3 +
-                       (2 * eta0 + etaf) / R0 * ((x - x0) / cos(q0)) ** 2 +
-                       -eta0 * ((x - x0) / cos(q0))) / cos(q0) + x * tan(q0)
+        # q0 = vehicle.q[0]
+        # eta0 = -vehicle.eta[0]
+        # etaf = vehicle.q[0] - vehicle.qd[0]
+        # R0 = vehicle.R
+        # y0 = x0 * tan(q0)
+        # Y = lambda x: (-(eta0 + etaf) / R0 ** 2 * ((x - x0) / cos(q0)) ** 3 +
+        #                (2 * eta0 + etaf) / R0 * ((x - x0) / cos(q0)) ** 2 +
+        #                -eta0 * ((x - x0) / cos(q0))) / cos(q0) + x * tan(q0)
 
-        V = lambda x: max(sqrt(max(c * exp(2 * a * x) + b / a, 0)), 1)
+        V = lambda r: max(sqrt(max(c * exp(2 * a * r) - b / a, 0)), 1)
 
         # V = lambda x: max(sqrt(max(c * exp(2 * a * x) + b / a, 0)), 1) + sqrt(
         #     (2 * (y0 - Y(x)) * vehicle.g + v0 ** 2)) - v0
 
-        xl = [x0, x0 * 2 / 3, x0 * 1 / 3, 0]
-        vx = [V(x) * cos(vehicle.gamma) for x in xl]
-        A = np.array([[x ** (len(xl) - i - 1) for i in range(len(xl))] for x in xl])
-        B = [1 / v for v in vx]
+        R = [r0, r0 * 2 / 3, r0 * 1 / 3, 0]
+        vr = [V(r) for r in R]
+        A = np.array([[r ** (len(R) - i - 1) for i in range(len(R))] for r in R])
+        B = [1 / v for v in vr]
         k = np.dot(np.linalg.inv(A), B)
-        Tgo = lambda x: -sum([k[len(xl) - i - 1] / (i + 1) * x ** (i + 1) for i in range(len(xl))])
+        Tgo = lambda r: sum([k[len(R) - i - 1] / (i + 1) * r ** (i + 1) for i in range(len(R))])
 
         tgo = []
         v = []
-        y = []
+        # y = []
         while done is False:
             done = vehicle.step(h)
-            xm = -np.linalg.norm([vehicle.x, vehicle.z])
-            tgo.append(Tgo(xm))
-            v.append(V(xm))
-            y.append(Y(xm))
+            tgo.append(Tgo(vehicle.R))
+            v.append(V(vehicle.R))
+            # y.append(Y(xm))
 
         states = np.array(vehicle.record["state"])
         e_max = max(np.array(tgo)[:-2] + states[:-1, 0] - vehicle.t)
@@ -331,11 +330,11 @@ def test_vehicle():
         plt.ion()
         plt.clf()
         # # tgo
-        # plt.plot(states[:, 0], np.array(tgo)[:-1], linestyle='--')
-        # plt.plot(states[:, 0], vehicle.t - states[:, 0])
+        plt.plot(states[:, 0], np.array(tgo)[:-1], linestyle='--')
+        plt.plot(states[:, 0], vehicle.t - states[:, 0])
         # # v
-        plt.plot(states[:, 0], np.array(v)[:-1], linestyle='--')
-        plt.plot(states[:, 0], states[:, 4])
+        # plt.plot(states[:, 0], np.array(v)[:-1], linestyle='--')
+        # plt.plot(states[:, 0], states[:, 4])
         # y
         # qs = np.array(vehicle.record["q"])
         # y_ = np.array([-np.linalg.norm([states[i, 1], states[i, 3]]) * tan(qs[i, 0]) for i in range(qs.shape[0])])

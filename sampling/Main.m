@@ -23,6 +23,7 @@ parfor i = 1:ktraj
     p = para(i,:);
     qgt = p(7) / RAD;
     qpt = p(8) / RAD;
+    
     d = p(10);
     xtd = -d * cos(qgt)*cos(qpt);
     ytd = -d * sin(qgt);
