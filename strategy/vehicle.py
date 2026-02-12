@@ -77,7 +77,7 @@ class Vehicle:  # 飞行器
         self.qd = np.array([uniform(-90, -30), uniform(-30, 30)]) / self.RAD  # 期望落角
         self.refresh()  # 更新弹体状态
         self.seeker()  # 更新弹体状态
-        if los is True:
+        if los is True:  # 速度方向、视线方向与期望落角相等
             self.state[5] = self.q[0]
             self.state[6] = self.q[1]
             self.qd = self.q

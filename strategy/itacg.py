@@ -35,7 +35,7 @@ class Itacg(Vehicle):
 
         self.target = Target([xtd, ytd, ztd])  # 伪目标
 
-    def newton_iteration_solve_d(self, td, verbose=2):  # 弦截法
+    def newton_iteration_solve_d(self, td, verbose=2):  # 弦截牛顿法
         n, dn = 0, self.R / 2
         delta = -10
         en = td - self.get_tgo(dn)
