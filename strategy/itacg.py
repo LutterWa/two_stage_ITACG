@@ -3,7 +3,7 @@ from warnings import catch_warnings
 import keras
 import numpy as np
 from random import seed, uniform
-from math import sin, cos, tan, sqrt, exp
+from math import sin, cos, tan, sqrt, exp, fabs
 from vehicle import Target, Vehicle
 import matplotlib.pyplot as plt
 from scipy.io import savemat
@@ -113,16 +113,16 @@ def test_itacg(task):
             vehicle.modify(state=[0., -10000., 5000., 1000., 400., 0., 0., 0., 0., 84.6])
             vehicle.set_d(0, np.array(ad) / vehicle.RAD)  # 设置期望落角
             vehicle.newton_iteration_solve_d(td)  # 根据飞行时间计算伪目标
-
             done = False
             t, n = 0, int(1 / h)
             tgo = []
             while done is False:
                 done = vehicle.step(h)
                 if t % n == 0:
-                    # if np.linalg.norm([vehicle.x, vehicle.y, vehicle.z]) - vehicle.d < vehicle.R_threshold:
-                    #     vehicle.newton_iteration_solve_d(td - vehicle.t - h, verbose=0)  # 根据飞行时间计算伪目标
-                    tgo.append(vehicle.get_tgo())
+                    tgo_n = vehicle.get_tgo()
+                    if fabs(td - vehicle.t - tgo_n) > 1e-1:
+                        vehicle.newton_iteration_solve_d(td - vehicle.t, verbose=2)  # 根据飞行时间计算伪目标
+                    tgo.append(tgo_n)
                 else:
                     tgo.append(tgo[-1] - h)
                 t += 1
@@ -181,6 +181,6 @@ def monte_carlo():
 
 
 if __name__ == '__main__':
-    # test_itacg("td")
-    # test_itacg("ad")
+    test_itacg("td")
+    test_itacg("ad")
     monte_carlo()

@@ -3,6 +3,7 @@
 logs/
 data/
 mats/
+sampling/classtype
 atm2.txt
 *.mat
 *.asv
