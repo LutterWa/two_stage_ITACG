@@ -31,6 +31,6 @@
 **Python**
 - [preprocess.py](./preprocess.py): 两阶段样本预处理
 - [dnn.py](./dnn.py): 两阶段交班点速度和到达时间预测器
-- [vehicle.pu](./vehicle.py)：变速模型的基础模型
+- [vehicle.py](./vehicle.py)：变速模型的基础模型
 - [itacg.py](./itacg.py)：变速模型的ITACG实现和蒙特卡罗仿真
 ---
